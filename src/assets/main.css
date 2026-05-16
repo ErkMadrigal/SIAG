@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg0: #0f1117;
+  --bg1: #161b27;
+  --bg2: #1e2535;
+  --bg3: #252d3d;
+  --bg4: #2d3748;
+  --tx0: #f0f4ff;
+  --tx1: #b8c4d8;
+  --tx2: #7a8aa0;
+  --tx3: #4a5568;
+  --acc: #4f8ef7;
+  --acc2: #3d7ae0;
+  --acc-dim: #1a2d4d;
+  --grn: #22c97a;
+  --grn-dim: #0d2e1f;
+  --red: #f05454;
+  --red-dim: #2e1010;
+  --amb: #f5a623;
+  --amb-dim: #2e1e06;
+  --bdr: rgba(255,255,255,0.07);
+  --bdr2: rgba(255,255,255,0.12);
+}
+
+.light {
+  --bg0: #f0f2f5;
+  --bg1: #ffffff;
+  --bg2: #f7f8fa;
+  --bg3: #eef0f4;
+  --bg4: #e2e5ea;
+  --tx0: #111827;
+  --tx1: #374151;
+  --tx2: #6b7280;
+  --tx3: #9ca3af;
+  --acc: #185FA5;
+  --acc2: #0c447c;
+  --acc-dim: #dbeafe;
+  --grn: #15803d;
+  --grn-dim: #dcfce7;
+  --red: #b91c1c;
+  --red-dim: #fee2e2;
+  --amb: #92400e;
+  --amb-dim: #fef3c7;
+  --bdr: rgba(0,0,0,0.08);
+  --bdr2: rgba(0,0,0,0.14);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--bg0);
+  color: var(--tx0);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 4px; }
