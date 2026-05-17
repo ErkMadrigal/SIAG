@@ -24,6 +24,7 @@
 
 <script setup>
 import { useUiStore }   from '@/stores/ui.js'
+import { useAuthStore } from '@/stores/auth.js'
 import Sidebar          from './Sidebar.vue'
 import TopBar           from './TopBar.vue'
 import CommandPalette   from '@/components/ui/CommandPalette.vue'
@@ -31,17 +32,17 @@ import MetodosPanel     from '@/components/ui/MetodosPanel.vue'
 import AvisoInactividad from '@/components/ui/AvisoInactividad.vue'
 import { useInactividad, sesionExpirada } from '@/composables/useInactividad.js'
 import { useRouter } from 'vue-router'
-import { nextTick } from 'vue'
 
-const ui     = useUiStore()
+const ui   = useUiStore()
+const auth = useAuthStore()
 const router = useRouter()
 
 const { mostrarAviso, segundosRestantes, continuar, cerrarSesionManual } = useInactividad()
 
 async function irLogin() {
-  sesionExpirada.value = false
-  auth.clearSession()          
-  await router.push('/login')  
+  sesionExpirada.value = false  // ocultar modal
+  auth.clearSession()           // limpiar token → isAuthenticated = false
+  await router.push('/login')   // guard ahora deja pasar
 }
 </script>
 

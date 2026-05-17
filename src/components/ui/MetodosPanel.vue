@@ -34,12 +34,13 @@ const ui     = useUiStore()
 const router = useRouter()
 
 const metodos = [
-  { label: 'Control área',   icon: 'ti-cpu',          color: '#22c97a', bg: '#0d2e1f', action: () => {} },
-  { label: 'Actividades',    icon: 'ti-activity',      color: '#4f8ef7', bg: '#1a2d4d', action: () => { router.push('/usuarios'); ui.closeMetodos() } },
+  { label: 'Control área',   icon: 'ti-cpu',          color: '#22c97a', bg: '#0d2e1f', action: () => { router.push('/control-area'); ui.closeMetodos() } },
+  { label: 'Actividades',    icon: 'ti-activity',      color: '#4f8ef7', bg: '#1a2d4d', action: () => { router.push('/actividades'); ui.closeMetodos() } },
   { label: 'Exportaciones',  icon: 'ti-cloud-download', color: '#4f8ef7', bg: '#1a2d4d', action: () => {} },
   { label: 'Importaciones',  icon: 'ti-cloud-upload',   color: '#4f8ef7', bg: '#1a2d4d', action: () => { router.push('/importaciones'); ui.closeMetodos() } },
   { label: 'Usuarios',       icon: 'ti-users-group',    color: '#4f8ef7', bg: '#1a2d4d', action: () => { router.push('/colaboradores'); ui.closeMetodos() } },
   { label: 'Configuración',  icon: 'ti-settings',       color: '#f5a623', bg: '#2e1e06', action: () => { router.push('/configuracion'); ui.closeMetodos() } },
+  
 ]
 </script>
 

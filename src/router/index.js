@@ -59,6 +59,11 @@ const routes = [
       { path: 'configuracion',         name: 'configuracion',     component: () => import('@/views/ConfiguracionView.vue'),                               meta: { vista: 'configuracion' } },
       { path: 'importaciones',         name: 'importaciones',     component: () => import('@/views/ImportacionesView.vue'),                               meta: { vista: 'importaciones' } },
       { path: 'importaciones/masiva',  name: 'importacion-masiva',component: () => import('@/views/ImportacionMasivaView.vue'),                           meta: { vista: 'importaciones' } },
+      { path: 'perfil', name: 'perfil', component: () => import('@/views/PerfilView.vue'), meta: { vista: 'home' } },
+      { path: 'control-area', name: 'control-area', component: () => import('@/views/ControlAreaView.vue'), meta: { vista: 'home' } },
+      { path: 'actividades', name: 'actividades', component: () => import('@/views/ActividadesView.vue'), meta: { vista: 'home' } },
+
+
     ]
   },
   // Cualquier ruta desconocida → home (o login si no autenticado, el guard lo maneja)

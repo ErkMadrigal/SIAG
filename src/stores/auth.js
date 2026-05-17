@@ -5,27 +5,33 @@ import router from '@/router/index.js'
 import { sesionExpirada } from '@/composables/useInactividad.js'
 import axios from 'axios'
 
-
 export const useAuthStore = defineStore('auth', () => {
-  const user        = ref(null)
-  const accessToken = ref(localStorage.getItem('access_token') || null)
+  const user         = ref(null)
+  const accessToken  = ref(localStorage.getItem('access_token')  || null)
   const refreshToken = ref(localStorage.getItem('refresh_token') || null)
 
   const isAuthenticated = computed(() => !!accessToken.value)
-  const userRole        = computed(() => user.value?.rol_nivel || null)
-  
+
+  // nivel y rol_nivel son el mismo campo — soportamos ambos por si el objeto
+  // viene del localStorage (sesión restaurada) o recién del login
+  const userRole = computed(() =>
+    user.value?.nivel ?? user.value?.rol_nivel ?? null
+  )
+
   const userVistas = computed(() => {
-    if (user.value?.rol_nivel === 1) return [
-      'dashboard','empleados','colaboradores','biometrico',
-      'registros','prenomina','altas_bajas','incidencias',
-      'hospitales','catalogos','tabulador','usuarios',
-      'configuracion','importaciones'  // ← agrega estos
+    const nivel = user.value?.nivel ?? user.value?.rol_nivel
+    if (nivel === 1) return [
+      'dashboard', 'empleados', 'colaboradores', 'biometrico',
+      'registros', 'prenomina', 'altas_bajas', 'incidencias',
+      'hospitales', 'catalogos', 'tabulador', 'usuarios',
+      'configuracion', 'importaciones',
     ]
     return user.value?.vistas || []
   })
-  
-  const userName        = computed(() => user.value?.nombre || '')
-  const userInitials    = computed(() => {
+
+  const userName = computed(() => user.value?.nombre || '')
+
+  const userInitials = computed(() => {
     if (!user.value?.nombre) return 'US'
     return user.value.nombre
       .split(' ')
@@ -37,12 +43,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(credentials) {
     const data = await authService.login(credentials)
-    
 
     sesionExpirada.value = false
-    accessToken.value  = data.access_token
-    refreshToken.value = data.refresh_token
-    user.value         = data.user
+    accessToken.value    = data.access_token
+    refreshToken.value   = data.refresh_token
+    user.value           = data.user
 
     localStorage.setItem('access_token',  data.access_token)
     localStorage.setItem('refresh_token', data.refresh_token)
@@ -52,9 +57,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
-    try {
-      await authService.logout()
-    } catch {}
+    try { await authService.logout() } catch {}
     clearSession()
     router.push('/login')
   }
@@ -67,15 +70,18 @@ export const useAuthStore = defineStore('auth', () => {
       }, {
         headers: { 'Content-Type': 'application/json' }
       })
-      const newToken   = data.data.tokens?.access_token || data.data.access_token
+
+      const newToken   = data.data.tokens?.access_token  || data.data.access_token
       const newRefresh = data.data.tokens?.refresh_token || data.data.refresh_token
 
       accessToken.value = newToken
       localStorage.setItem('access_token', newToken)
+
       if (newRefresh) {
         refreshToken.value = newRefresh
         localStorage.setItem('refresh_token', newRefresh)
       }
+
       return newToken
     } catch {
       // Silencioso — no disparar sesionExpirada aquí
@@ -93,7 +99,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.removeItem('user')
     }
   }
-  
+
   function clearSession() {
     user.value         = null
     accessToken.value  = null
@@ -108,6 +114,6 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated, userRole, userVistas,
     userName, userInitials,
     login, logout, refreshAccessToken,
-    restoreSession, clearSession
+    restoreSession, clearSession,
   }
 })

@@ -49,17 +49,14 @@
             <div class="pd-divider"></div>
 
             <!-- Items -->
-            <div class="pd-item">
-              <i class="ti ti-user" aria-hidden="true"></i>
-              Mi perfil
+            <div class="pd-item" @click="irA('/perfil?tab=perfil')">
+              <i class="ti ti-user"></i> Mi perfil
             </div>
-            <div class="pd-item">
-              <i class="ti ti-settings" aria-hidden="true"></i>
-              Configuración
+            <div class="pd-item" @click="irA('/perfil?tab=config')">
+              <i class="ti ti-settings"></i> Configuración
             </div>
-            <div class="pd-item">
-              <i class="ti ti-shield-lock" aria-hidden="true"></i>
-              Cambiar contraseña
+            <div class="pd-item" @click="irA('/perfil?tab=password')">
+              <i class="ti ti-shield-lock"></i> Cambiar contraseña
             </div>
 
             <div class="pd-divider"></div>
@@ -77,16 +74,24 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router' 
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore }   from '@/stores/ui.js'
 import Breadcrumb       from './Breadcrumb.vue'
 import AvatarInitials   from '@/components/ui/AvatarInitials.vue'
+const router = useRouter()
 
 const auth = useAuthStore()
 const ui   = useUiStore()
 
 const profileOpen = ref(false)
 const profileRef  = ref(null)
+
+function irA(path) {
+  profileOpen.value = false
+  router.push(path)
+}
+
 
 function toggleProfile() {
   profileOpen.value = !profileOpen.value
