@@ -24,6 +24,10 @@
           <span class="badge-dato" v-if="empleado.curp">CURP: {{ empleado.curp }}</span>
           <span class="badge-dato" v-if="empleado.rfc">RFC: {{ empleado.rfc }}</span>
           <span class="badge-dato" v-if="empleado.nss">NSS: {{ empleado.nss }}</span>
+          <span class="badge-dato" v-if="empleado.ubicacion_principal">
+            <i class="ti ti-map-pin" style="font-size:11px"></i>
+            {{ empleado.ubicacion_principal }}
+          </span>
         </div>
       </div>
     </div>

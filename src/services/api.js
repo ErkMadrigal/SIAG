@@ -1,8 +1,17 @@
 import axios from 'axios'
 import { sesionExpirada } from '@/composables/useInactividad.js'
 
+// ── BASE URL ──────────────────────────────────────────────────────────
+// PRODUCCIÓN
+// const BASE_URL   = 'https://serprosep.vinculasag.com/api/v1'
+// const REFRESH_URL = 'https://serprosep.vinculasag.com/api/v1/auth/refresh'
+
+// LOCAL (descomentar para pruebas locales y comentar las de arriba)
+const BASE_URL    = '/api/v1'
+const REFRESH_URL = '/api/v1/auth/refresh'
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' }
 })
 
@@ -34,14 +43,13 @@ api.interceptors.request.use(
       const payload     = JSON.parse(atob(token.split('.')[1]))
       const restanteMin = (payload.exp * 1000 - Date.now()) / 1000 / 60
 
-
       if (restanteMin < 3 && restanteMin > 0 && !isRefreshing) {
         const refreshToken = localStorage.getItem('refresh_token')
         if (refreshToken) {
           isRefreshing = true
           try {
             const { data } = await axios.post(
-              '/api/v1/auth/refresh',
+              REFRESH_URL,
               { refresh_token: refreshToken },
               { headers: { 'Content-Type': 'application/json' } }
             )
@@ -77,7 +85,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry) {
 
       // Si el refresh en sí da 401, sesión definitivamente expirada
-      if (original.url?.includes('/auth/refresh')) {
+      if (original.url?.includes('auth/refresh')) {
         dispararSesionExpirada()
         return Promise.reject(error)
       }
@@ -103,7 +111,7 @@ api.interceptors.response.use(
         }
 
         const { data } = await axios.post(
-          '/api/v1/auth/refresh',
+          REFRESH_URL,
           { refresh_token: refreshToken },
           { headers: { 'Content-Type': 'application/json' } }
         )

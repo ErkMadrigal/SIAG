@@ -316,4 +316,11 @@ onUnmounted(() => {
   .user-chip { padding: 4px; border-radius: 50%; }
   .chip-arrow { display: none; }
 }
+
+@media (max-width: 768px) {
+  /* Ocultar algunos botones en móvil para no saturar */
+  .topbar-right .tb-btn:not(.notif-btn) { display: none; }
+  /* Mostrar solo notificaciones y perfil */
+  .topbar-right { gap: 4px; }
+}
 </style>

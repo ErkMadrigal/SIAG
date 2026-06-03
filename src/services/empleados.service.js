@@ -56,5 +56,10 @@ export const empleadosService = {
     const { data } = await api.post(`/empleados/${id}/baja-accion`, { tipo })
     return data
   },
+
+  toggleBiometrico(id, valor) {
+    return api.patch(`/empleados/${id}/biometrico`, { acceso_biometrico: valor })
+    .then(r => r.data)
+  }
   
 }

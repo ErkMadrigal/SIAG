@@ -16,6 +16,12 @@
         </button>
       </div>
     </div>
+    <div v-if="successMsg" class="alert-success">
+      <i class="ti ti-circle-check"></i> {{ successMsg }}
+    </div>
+    <div v-if="errorMsg" class="alert-error">
+      <i class="ti ti-alert-circle"></i> {{ errorMsg }}
+    </div>
 
     <!-- Métricas -->
     <div class="emp-metrics">
@@ -44,6 +50,34 @@
           </button>
         </div>
 
+
+        <!-- Filtro ubicación -->
+        <div class="ubicacion-wrap">
+          <div class="ubicacion-search">
+            <i class="ti ti-map-pin" aria-hidden="true"></i>
+            <input
+              v-model="ubicacionQuery"
+              placeholder="Ubicación..."
+              @input="onUbicacionSearch"
+              @focus="showUbicacionList = true"
+              autocomplete="off"
+            />
+            <button v-if="ubicacionQuery" class="clear-btn" @click="clearUbicacion">
+              <i class="ti ti-x"></i>
+            </button>
+          </div>
+          <div v-if="showUbicacionList && ubicacionResultados.length" class="ubicacion-list">
+            <div
+              v-for="s in ubicacionResultados"
+              :key="s.id"
+              class="ubicacion-item"
+              @mousedown.prevent="selectUbicacion(s)"
+            >
+              <i class="ti ti-map-pin" aria-hidden="true"></i>
+              {{ s.text || s.valor || s.nombre }}
+            </div>
+          </div>
+        </div>
         <div class="toolbar-right">
           <!-- Filtro estatus -->
           <select class="sel" v-model="filtros.status" @change="fetchData(1)">
@@ -57,6 +91,13 @@
           <select class="sel" v-model="filtros.puesto" @change="fetchData(1)">
             <option value="">Todos los puestos</option>
             <option v-for="p in puestos" :key="p.id" :value="p.id">{{ p.valor }}</option>
+          </select>
+
+          <!-- Filtro biométrico -->
+          <select class="sel" v-model="filtros.biometrico" @change="fetchData(1)">
+            <option value="">Acceso biométrico</option>
+            <option value="1">Con acceso</option>
+            <option value="0">Sin acceso</option>
           </select>
 
           <!-- Registros por página -->
@@ -83,11 +124,24 @@
           <thead>
             <tr>
               <th style="width:60px">No.</th>
-              <th style="width:220px">Empleado</th>
-              <th style="width:140px">CURP</th>
-              <th style="width:120px">Fecha ingreso</th>
-              <th style="width:140px">Puesto</th>
-              <th style="width:100px">Estatus</th>
+              <th style="width:200px">Empleado</th>
+              <th style="width:130px">CURP</th>
+              <th style="width:110px">Fecha ingreso</th>
+              <th style="width:130px">Puesto</th>
+              <th style="width:120px">
+                <div style="display:flex;align-items:center;gap:4px">
+                  <i class="ti ti-map-pin" style="font-size:13px"></i>
+                  Ubicación
+                </div>
+              </th>
+              <th style="width:90px">Estatus</th>
+              <!-- NUEVA columna biométrico -->
+              <th style="width:110px;text-align:center">
+                <div style="display:flex;align-items:center;justify-content:center;gap:4px">
+                  <i class="ti ti-fingerprint" style="font-size:13px"></i>
+                  Biométrico
+                </div>
+              </th>
               <th style="width:80px;text-align:right">Acciones</th>
             </tr>
           </thead>
@@ -109,7 +163,33 @@
               <td class="mono">{{ emp.curp || '—' }}</td>
               <td style="color:var(--tx2)">{{ formatDate(emp.fecha_efectiva) }}</td>
               <td style="color:var(--tx1)">{{ emp.puesto || '—' }}</td>
+              <td style="color:var(--tx2);font-size:12px">
+                {{ emp.ubicacion_principal || '—' }}
+              </td>
               <td><StatusPill :status="mapEstatus(emp.estatus)" /></td>
+
+              <!-- Toggle biométrico -->
+              <td @click.stop style="text-align:center">
+                <div class="bio-toggle-wrap">
+                  <button
+                    class="bio-toggle"
+                    :class="{ active: emp.acceso_biometrico == 1, loading: togglingId === emp.id }"
+                    :disabled="togglingId === emp.id"
+                    @click="toggleBiometrico(emp)"
+                    :title="emp.acceso_biometrico == 1 ? 'Revocar acceso biométrico' : 'Habilitar acceso biométrico'"
+                  >
+                    <span class="bio-track">
+                      <span class="bio-thumb">
+                        <i v-if="togglingId === emp.id" class="ti ti-loader-2 spin"></i>
+                        <i v-else-if="emp.acceso_biometrico == 1" class="ti ti-fingerprint"></i>
+                        <i v-else class="ti ti-fingerprint-off"></i>
+                      </span>
+                    </span>
+                    <span class="bio-label">{{ emp.acceso_biometrico == 1 ? 'Activo' : 'Inactivo' }}</span>
+                  </button>
+                </div>
+              </td>
+
               <td @click.stop>
                 <div class="row-actions">
                   <button
@@ -138,7 +218,7 @@
               </td>
             </tr>
             <tr v-if="!empleados.length && !loading">
-              <td colspan="7" class="empty-row">
+              <td colspan="9" class="empty-row">
                 <i class="ti ti-users-off" style="font-size:24px;display:block;margin-bottom:8px;opacity:.4"></i>
                 No se encontraron empleados
               </td>
@@ -170,6 +250,7 @@
         </div>
       </div>
     </div>
+
     <ModalBaja
       v-if="modalBaja && empSeleccionado"
       :emp="empSeleccionado"
@@ -192,30 +273,79 @@ import { useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui.js'
 import { empleadosService } from '@/services/empleados.service.js'
 import { catalogosService } from '@/services/catalogos.service.js'
-import StatusPill from '@/components/ui/StatusPill.vue'
+import StatusPill      from '@/components/ui/StatusPill.vue'
 import ModalBaja       from '@/components/ui/ModalBaja.vue'
 import ModalIncidencia from '@/components/ui/ModalIncidencia.vue'
+import api from '@/services/api.js'
 
 const router = useRouter()
 const ui     = useUiStore()
 
-const loading       = ref(true)
-const empleados     = ref([])
-const totalEmpleados = ref(0)
-const completados   = ref(0)
-const bajas         = ref(0)
-const pendientes    = ref(0)
-const page          = ref(1)
-const perPage       = ref(10)
-const searchQuery   = ref('')
-const puestos       = ref([])
+const loading         = ref(true)
+const empleados       = ref([])
+const totalEmpleados  = ref(0)
+const completados     = ref(0)
+const bajas           = ref(0)
+const pendientes      = ref(0)
+const page            = ref(1)
+const perPage         = ref(10)
+const searchQuery     = ref('')
+const puestos         = ref([])
 const modalBaja       = ref(false)
 const modalIncidencia = ref(false)
 const empSeleccionado = ref(null)
+const togglingId      = ref(null)
+const successMsg = ref('')
+const errorMsg   = ref('')
+
+const ubicacionQuery      = ref('')
+const ubicacionResultados = ref([])
+const showUbicacionList   = ref(false)
+
+let ubicacionTimer = null
+function onUbicacionSearch() {
+  filtros.value.ubicacion = ''
+  clearTimeout(ubicacionTimer)
+  if (!ubicacionQuery.value.trim() || ubicacionQuery.value.length < 2) {
+    ubicacionResultados.value = []
+    return
+  }
+  ubicacionTimer = setTimeout(async () => {
+    try {
+      const { data } = await api.get('/catalogos/servicios/select', {
+        params: { query: ubicacionQuery.value, limit: 10 }
+      })
+      ubicacionResultados.value = data.data || []
+      showUbicacionList.value = true
+    } catch { ubicacionResultados.value = [] }
+  }, 300)
+}
+
+function selectUbicacion(s) {
+  filtros.value.ubicacion = s.id
+  ubicacionQuery.value    = s.text || s.valor || s.nombre
+  showUbicacionList.value = false
+  fetchData(1)
+}
+
+function clearUbicacion() {
+  ubicacionQuery.value      = ''
+  filtros.value.ubicacion   = ''
+  ubicacionResultados.value = []
+  fetchData(1)
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.ubicacion-search') && !e.target.closest('.ubicacion-list')) {
+    showUbicacionList.value = false
+  }
+})
 
 const filtros = ref({
-  status: '',
-  puesto: '',
+  status:     '',
+  puesto:     '',
+  biometrico: '',
+  ubicacion:   '',
 })
 
 let debounceTimer = null
@@ -236,7 +366,6 @@ onMounted(async () => {
   await Promise.all([fetchData(1), loadPuestos()])
 })
 
-
 async function fetchData(p = 1) {
   loading.value = true
   page.value = p
@@ -245,24 +374,26 @@ async function fetchData(p = 1) {
     if (searchQuery.value.trim()) {
       const offset = (p - 1) * perPage.value
       const res = await empleadosService.buscar(searchQuery.value.trim(), perPage.value, offset)
-      empleados.value      = res.data  || res.empleados || []
+      empleados.value     = res.data  || res.empleados || []
       totalEmpleados.value = res.total || empleados.value.length
     } else {
       const params = {
         page:  p,
         limit: perPage.value,
       }
-      if (filtros.value.status !== '') params.status = filtros.value.status
-      if (filtros.value.puesto)        params.puesto = filtros.value.puesto
+
+      if (filtros.value.ubicacion) params.ubicacion = filtros.value.ubicacion
+      if (filtros.value.status     !== '') params.status     = filtros.value.status
+      if (filtros.value.puesto)            params.puesto     = filtros.value.puesto
+      if (filtros.value.biometrico !== '') params.biometrico = filtros.value.biometrico
 
       const res = await empleadosService.getAll(params)
-      empleados.value      = res.empleado?.data             || []
+      empleados.value     = res.empleado?.data             || []
       totalEmpleados.value = res.empleado?.total            || 0
-      completados.value    = res.completados?.empleadosTotales || 0
-      bajas.value          = res.bajas?.empleadosTotales       || 0
-      pendientes.value     = res.pendientes?.empleadosTotales  || 0
+      completados.value   = res.completados?.empleadosTotales || 0
+      bajas.value         = res.bajas?.empleadosTotales       || 0
+      pendientes.value    = res.pendientes?.empleadosTotales  || 0
     }
-
   } catch (err) {
     console.error('Error:', err)
   } finally {
@@ -276,6 +407,38 @@ async function loadPuestos() {
   } catch {}
 }
 
+// ── TOGGLE BIOMÉTRICO ────────────────────────────────────────────────
+async function toggleBiometrico(emp) {
+  if (togglingId.value === emp.id) return
+
+  const nuevoValor  = emp.acceso_biometrico == 1 ? 0 : 1
+  const esHabilitar = nuevoValor === 1
+
+  togglingId.value = emp.id
+  successMsg.value = ''
+  errorMsg.value   = ''
+
+  try {
+    await empleadosService.toggleBiometrico(emp.id, nuevoValor)
+
+    const idx = empleados.value.findIndex(e => e.id === emp.id)
+    if (idx !== -1) {
+      empleados.value[idx] = { ...empleados.value[idx], acceso_biometrico: nuevoValor }
+    }
+
+    successMsg.value = esHabilitar
+      ? `Acceso biométrico habilitado para ${emp.nombre}`
+      : `Acceso biométrico revocado para ${emp.nombre}`
+
+    setTimeout(() => { successMsg.value = '' }, 3500)
+  } catch {
+    errorMsg.value = 'No se pudo actualizar el acceso biométrico.'
+    setTimeout(() => { errorMsg.value = '' }, 3500)
+  } finally {
+    togglingId.value = null
+  }
+}
+
 function onSearch() {
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => fetchData(1), 500)
@@ -287,8 +450,9 @@ function clearSearch() {
 }
 
 function resetFiltros() {
-  searchQuery.value = ''
-  filtros.value = { status: '', puesto: '' }
+  searchQuery.value   = ''
+  ubicacionQuery.value = ''
+  filtros.value = { status: '', puesto: '', biometrico: '', ubicacion: '' }
   fetchData(1)
 }
 
@@ -335,10 +499,10 @@ const visiblePages = computed(() => {
 })
 
 const metricas = computed(() => [
-  { label: 'Total',     icon: 'ti-users',        color: 'blue',  value: totalEmpleados.value.toLocaleString() },
-  { label: 'Activos',   icon: 'ti-circle-check', color: 'green', value: completados.value },
-  { label: 'Bajas',     icon: 'ti-user-off',     color: 'red',   value: bajas.value },
-  { label: 'Pendientes',icon: 'ti-clock',        color: 'amber', value: pendientes.value },
+  { label: 'Total',      icon: 'ti-users',        color: 'blue',  value: totalEmpleados.value.toLocaleString() },
+  { label: 'Activos',    icon: 'ti-circle-check', color: 'green', value: completados.value },
+  { label: 'Bajas',      icon: 'ti-user-off',     color: 'red',   value: bajas.value },
+  { label: 'Pendientes', icon: 'ti-clock',        color: 'amber', value: pendientes.value },
 ])
 
 function getInitials(nombre) {
@@ -361,72 +525,41 @@ function mapEstatus(val) {
 .empleados-view { display: flex; flex-direction: column; gap: 14px; }
 
 .view-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 12px; flex-wrap: wrap;
 }
 .view-title { font-size: 20px; font-weight: 600; color: var(--tx0); }
 .view-sub   { font-size: 12px; color: var(--tx2); margin-top: 3px; }
 .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 .btn-sm {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 0.5px solid var(--bdr2);
-  background: transparent;
-  font-size: 12px;
-  color: var(--tx1);
-  cursor: pointer;
-  transition: all .15s;
-  font-family: inherit;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border-radius: 8px;
+  border: 0.5px solid var(--bdr2); background: transparent;
+  font-size: 12px; color: var(--tx1); cursor: pointer;
+  transition: all .15s; font-family: inherit;
 }
 .btn-sm:hover { background: var(--bg3); color: var(--tx0); }
 .btn-primary-lg {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: none;
-  background: var(--acc);
-  font-size: 13px;
-  color: #fff;
-  cursor: pointer;
-  transition: background .15s;
-  font-family: inherit;
-  font-weight: 500;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px; border: none;
+  background: var(--acc); font-size: 13px; color: #fff;
+  cursor: pointer; transition: background .15s;
+  font-family: inherit; font-weight: 500;
 }
 .btn-primary-lg:hover { background: var(--acc2); }
 
 /* Métricas */
-.emp-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
+.emp-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .emc {
-  background: var(--bg1);
-  border: 0.5px solid var(--bdr);
-  border-radius: 12px;
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  background: var(--bg1); border: 0.5px solid var(--bdr);
+  border-radius: 12px; padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px;
 }
 .emc-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  flex-shrink: 0;
+  width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
 }
 .emc-val   { font-size: 20px; font-weight: 600; color: var(--tx0); letter-spacing: -0.5px; }
 .emc-label { font-size: 11px; color: var(--tx2); margin-top: 2px; }
@@ -437,82 +570,46 @@ function mapEstatus(val) {
 
 /* Sección tabla */
 .sec {
-  background: var(--bg1);
-  border: 0.5px solid var(--bdr);
-  border-radius: 12px;
-  overflow: hidden;
+  background: var(--bg1); border: 0.5px solid var(--bdr);
+  border-radius: 12px; overflow: hidden;
 }
 .toolbar {
-  padding: 10px 14px;
-  border-bottom: 0.5px solid var(--bdr);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  padding: 10px 14px; border-bottom: 0.5px solid var(--bdr);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .search-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--bg2);
-  border: 0.5px solid var(--bdr2);
-  border-radius: 8px;
-  padding: 6px 10px;
-  flex: 1;
-  min-width: 180px;
-  max-width: 320px;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg2); border: 0.5px solid var(--bdr2);
+  border-radius: 8px; padding: 6px 10px;
+  flex: 1; min-width: 180px; max-width: 320px;
 }
 .search-box i { font-size: 15px; color: var(--tx2); flex-shrink: 0; }
 .search-box input {
-  background: transparent;
-  border: none;
-  outline: none;
-  font-size: 12px;
-  color: var(--tx0);
-  width: 100%;
-  font-family: inherit;
+  background: transparent; border: none; outline: none;
+  font-size: 12px; color: var(--tx0); width: 100%; font-family: inherit;
 }
 .search-box input::placeholder { color: var(--tx3); }
 .clear-search {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--tx2);
-  font-size: 14px;
-  padding: 0;
-  display: flex;
+  background: none; border: none; cursor: pointer;
+  color: var(--tx2); font-size: 14px; padding: 0; display: flex;
 }
 .toolbar-right { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
 .sel {
-  background: var(--bg2);
-  border: 0.5px solid var(--bdr2);
-  border-radius: 8px;
-  padding: 5px 8px;
-  font-size: 12px;
-  color: var(--tx1);
-  outline: none;
-  cursor: pointer;
-  font-family: inherit;
+  background: var(--bg2); border: 0.5px solid var(--bdr2);
+  border-radius: 8px; padding: 5px 8px; font-size: 12px;
+  color: var(--tx1); outline: none; cursor: pointer; font-family: inherit;
 }
 
 /* Tabla */
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 th {
-  padding: 8px 14px;
-  text-align: left;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--tx2);
-  text-transform: uppercase;
-  letter-spacing: .7px;
-  border-bottom: 0.5px solid var(--bdr);
-  white-space: nowrap;
+  padding: 8px 14px; text-align: left; font-size: 10px;
+  font-weight: 500; color: var(--tx2); text-transform: uppercase;
+  letter-spacing: .7px; border-bottom: 0.5px solid var(--bdr); white-space: nowrap;
 }
 td {
-  padding: 10px 14px;
-  color: var(--tx0);
-  font-size: 12.5px;
+  padding: 10px 14px; color: var(--tx0); font-size: 12.5px;
   border-bottom: 0.5px solid var(--bdr);
 }
 tbody tr { cursor: pointer; transition: background .12s; }
@@ -523,79 +620,90 @@ tbody tr:last-child td { border-bottom: none; }
 .mono    { font-family: monospace; font-size: 11px; color: var(--tx1); }
 .emp-cell { display: flex; align-items: center; gap: 8px; }
 .emp-av {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
-  flex-shrink: 0;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600; flex-shrink: 0;
 }
 .emp-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-actions { display: flex; gap: 4px; justify-content: flex-end; }
 .icon-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  background: var(--bg2);
-  border: 0.5px solid var(--bdr);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--tx2);
-  font-size: 13px;
-  transition: all .15s;
+  width: 26px; height: 26px; border-radius: 6px;
+  background: var(--bg2); border: 0.5px solid var(--bdr);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--tx2); font-size: 13px; transition: all .15s;
 }
 .icon-btn:hover { background: var(--bg3); color: var(--tx0); }
-.empty-row {
-  text-align: center;
-  color: var(--tx2);
-  padding: 40px;
-  font-size: 13px;
+.empty-row { text-align: center; color: var(--tx2); padding: 40px; font-size: 13px; }
+
+/* ── TOGGLE BIOMÉTRICO ── */
+.bio-toggle-wrap { display: flex; justify-content: center; align-items: center; }
+.bio-toggle {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: none; cursor: pointer;
+  padding: 3px; border-radius: 8px;
+  transition: opacity .15s;
 }
+.bio-toggle:disabled { opacity: .5; cursor: not-allowed; }
+
+.bio-track {
+  width: 36px; height: 20px; border-radius: 10px;
+  background: var(--bdr2);
+  border: 0.5px solid var(--bdr2);
+  position: relative; transition: background .2s, border-color .2s;
+  flex-shrink: 0;
+}
+.bio-toggle.active .bio-track {
+  background: var(--grn, #22c97a);
+  border-color: var(--grn, #22c97a);
+}
+
+.bio-thumb {
+  position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: var(--tx2);
+  transition: transform .2s, color .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.bio-toggle.active .bio-thumb {
+  transform: translateX(16px);
+  color: var(--grn, #22c97a);
+}
+
+.bio-label {
+  font-size: 11px; font-weight: 500;
+  color: var(--tx2); min-width: 40px;
+  transition: color .2s;
+}
+.bio-toggle.active .bio-label { color: var(--grn, #22c97a); }
+
+/* Spinner */
+.spin { animation: spin .6s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Skeleton */
 .skeleton-wrap { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .skeleton-row {
-  height: 42px;
-  background: var(--bg2);
-  border-radius: 8px;
+  height: 42px; background: var(--bg2); border-radius: 8px;
   animation: pulse 1.5s ease-in-out infinite;
 }
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: .4; }
-}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
 
 /* Paginación */
 .pagination-bar {
-  padding: 10px 14px;
-  border-top: 0.5px solid var(--bdr);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
+  padding: 10px 14px; border-top: 0.5px solid var(--bdr);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px;
 }
 .pg-info { font-size: 11px; color: var(--tx2); }
 .pg-btns { display: flex; gap: 3px; }
 .pg-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: transparent;
-  border: 0.5px solid var(--bdr2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  cursor: pointer;
-  color: var(--tx1);
-  transition: all .15s;
-  font-family: inherit;
+  width: 28px; height: 28px; border-radius: 6px;
+  background: transparent; border: 0.5px solid var(--bdr2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; cursor: pointer; color: var(--tx1);
+  transition: all .15s; font-family: inherit;
 }
 .pg-btn:hover:not(:disabled) { background: var(--bg3); }
 .pg-btn.active { background: var(--acc); color: #fff; border-color: var(--acc); }
@@ -607,4 +715,45 @@ tbody tr:last-child td { border-bottom: none; }
   .search-box  { max-width: 100%; }
   .toolbar     { gap: 6px; }
 }
+
+/* Alerts */
+.alert-error, .alert-success {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: 10px; font-size: 13px;
+}
+.alert-error   { background: var(--red-dim); border: 0.5px solid var(--red); color: var(--red); }
+.alert-success { background: var(--grn-dim); border: 0.5px solid var(--grn); color: var(--grn); }
+
+.ubicacion-wrap { position: relative; }
+.ubicacion-search {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg2); border: 0.5px solid var(--bdr2);
+  border-radius: 8px; padding: 0 8px; height: 30px;
+  transition: border .15s; min-width: 140px;
+}
+.ubicacion-search:focus-within { border-color: var(--acc); }
+.ubicacion-search i { font-size: 14px; color: var(--tx2); flex-shrink: 0; }
+.ubicacion-search input {
+  background: transparent; border: none; outline: none;
+  font-size: 12px; color: var(--tx0); width: 100%; font-family: inherit;
+  padding: 0;
+}
+.ubicacion-search input::placeholder { color: var(--tx3); }
+.clear-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--tx2); font-size: 13px; padding: 0; display: flex;
+}
+.ubicacion-list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: var(--bg1); border: 0.5px solid var(--bdr2);
+  border-radius: 8px; max-height: 180px; overflow-y: auto;
+  z-index: 200;
+}
+.ubicacion-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; font-size: 12px; color: var(--tx1);
+  cursor: pointer; transition: background .12s;
+}
+.ubicacion-item:hover { background: var(--bg2); color: var(--tx0); }
+.ubicacion-item i { font-size: 13px; color: var(--tx2); }
 </style>

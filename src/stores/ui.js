@@ -5,7 +5,7 @@ import { usePreferredDark } from '@vueuse/core'
 export const useUiStore = defineStore('ui', () => {
   const prefersDark   = usePreferredDark()
   const isDark        = ref(localStorage.getItem('theme') === 'light' ? false : true)
-  const sidebarOpen   = ref(true)
+  const sidebarOpen = ref(window.innerWidth > 768)
   const cmdPaletteOpen = ref(false)
   const metodosPanelOpen = ref(false)
   const currentPage   = ref('Dashboard')
@@ -49,12 +49,16 @@ export const useUiStore = defineStore('ui', () => {
     breadcrumbs.value = crumbs
   }
 
+  function closeSidebar() {
+    sidebarOpen.value = false
+  }
+
   return {
     isDark, sidebarOpen, cmdPaletteOpen, metodosPanelOpen,
     currentPage, breadcrumbs,
     toggleTheme, toggleSidebar,
     openCmdPalette, closeCmdPalette,
     openMetodos, closeMetodos,
-    setBreadcrumbs
+    setBreadcrumbs, closeSidebar  
   }
 })

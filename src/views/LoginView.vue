@@ -6,7 +6,7 @@
           <i class="ti ti-shield-half" aria-hidden="true"></i>
         </div>
         <div>
-          <div class="brand-name">SkyNet</div>
+          <div class="brand-name">SIAG</div>
           <div class="brand-sub">Sistema Integral Administrativo</div>
         </div>
       </div>
@@ -63,7 +63,7 @@
         </form>
       </div>
 
-      <p class="login-footer">SkyNet SIA v1.0 · {{ new Date().getFullYear() }}</p>
+      <p class="login-footer">SIAG SIA v1.0 · {{ new Date().getFullYear() }}</p>
     </div>
 
     <div class="login-right">

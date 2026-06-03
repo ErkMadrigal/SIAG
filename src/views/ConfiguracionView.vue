@@ -111,7 +111,7 @@
       <div class="sys-item">
         <i class="ti ti-server" aria-hidden="true"></i>
         <span class="sys-label">Sistema</span>
-        <span class="sys-val">SkyNet SIA v1.0</span>
+        <span class="sys-val">SIAG v1.0</span>
       </div>
       <div class="sys-sep"></div>
       <div class="sys-item">

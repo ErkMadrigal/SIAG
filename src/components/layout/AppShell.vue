@@ -1,5 +1,11 @@
 <template>
   <div class="shell">
+    <!-- Overlay móvil -->
+    <div
+      v-if="ui.sidebarOpen && isMobile"
+      class="sidebar-overlay"
+      @click="ui.closeSidebar()"
+    />
     <Sidebar />
     <div class="shell-main">
       <TopBar />
@@ -7,10 +13,8 @@
         <RouterView />
       </main>
     </div>
-
     <CommandPalette v-if="ui.cmdPaletteOpen" />
     <MetodosPanel   v-if="ui.metodosPanelOpen" />
-
     <AvisoInactividad
       :segundos="segundosRestantes"
       :mostrar-aviso="mostrarAviso"
@@ -23,6 +27,7 @@
 </template>
 
 <script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useUiStore }   from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
 import Sidebar          from './Sidebar.vue'
@@ -36,13 +41,26 @@ import { useRouter } from 'vue-router'
 const ui   = useUiStore()
 const auth = useAuthStore()
 const router = useRouter()
-
 const { mostrarAviso, segundosRestantes, continuar, cerrarSesionManual } = useInactividad()
 
+const isMobile = ref(false)
+
+function checkMobile() {
+  isMobile.value = window.innerWidth <= 768
+  // En móvil el sidebar arranca cerrado
+  if (isMobile.value) ui.sidebarOpen = false
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+onUnmounted(() => window.removeEventListener('resize', checkMobile))
+
 async function irLogin() {
-  sesionExpirada.value = false  // ocultar modal
-  auth.clearSession()           // limpiar token → isAuthenticated = false
-  await router.push('/login')   // guard ahora deja pasar
+  sesionExpirada.value = false
+  auth.clearSession()
+  await router.push('/login')
 }
 </script>
 
@@ -57,7 +75,16 @@ async function irLogin() {
 .shell-content {
   flex: 1; overflow-y: auto; padding: 16px;
 }
+.sidebar-overlay {
+  display: none;
+}
 @media (max-width: 768px) {
   .shell-content { padding: 10px; }
+  .sidebar-overlay {
+    display: block;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 99;
+  }
 }
 </style>

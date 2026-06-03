@@ -7,7 +7,7 @@
       </div>
       <transition name="fade">
         <div v-if="ui.sidebarOpen" class="logo-text">
-          <div class="logo-name">SkyNet</div>
+          <div class="logo-name">SIAG</div>
           <div class="logo-sub">SIA v1.0</div>
         </div>
       </transition>
@@ -83,6 +83,10 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore }   from '@/stores/ui.js'
 import { VISTAS_MAP }   from '@/router/index.js'
 import AvatarInitials   from '@/components/ui/AvatarInitials.vue'
+import { watch } from 'vue'
+import { useRoute } from 'vue-router'
+
+
 
 const auth = useAuthStore()
 const ui   = useUiStore()
@@ -119,6 +123,15 @@ const vistas = auth.userVistas
   })
 
   return groups
+})
+
+const route = useRoute()
+
+// Cierra el sidebar al cambiar de ruta en móvil
+watch(() => route.path, () => {
+  if (window.innerWidth <= 768) {
+    ui.sidebarOpen = false
+  }
 })
 
 function getBadge(vista) {
@@ -245,4 +258,27 @@ function setPage(label, crumbs) {
 }
 .fade-enter-active, .fade-leave-active { transition: opacity .2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* Agrega al final del <style scoped> existente */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform .25s ease, width .25s ease;
+    width: 230px !important;
+    min-width: 230px !important;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+  }
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+    width: 230px !important;
+    min-width: 230px !important;
+  }
+  /* Cuando está abierto en móvil */
+  .sidebar:not(.collapsed) {
+    transform: translateX(0);
+  }
+}
 </style>
