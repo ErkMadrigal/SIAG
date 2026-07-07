@@ -58,12 +58,15 @@
               </td>
               <td>
                 <div class="row-actions">
-                  <button class="icon-btn" @click="abrirEditar(t)" title="Editar tabulador">
-                    <i class="ti ti-pencil"></i>
-                  </button>
-                  <button class="icon-btn accent" @click="abrirItems(t)" title="Ver items">
-                    <i class="ti ti-list-details"></i>
-                  </button>
+                    <button class="icon-btn" @click="abrirEditar(t)" title="Editar tabulador">
+                      <i class="ti ti-pencil"></i>
+                    </button>
+                    <button class="icon-btn" @click="abrirDuplicar(t)" title="Duplicar tabulador">
+                      <i class="ti ti-copy"></i>
+                    </button>
+                    <button class="icon-btn accent" @click="abrirItems(t)" title="Ver items">
+                      <i class="ti ti-list-details"></i>
+                    </button>
                 </div>
               </td>
             </tr>
@@ -314,6 +317,67 @@
       </div>
     </Teleport>
 
+    <!-- MODAL DUPLICAR TABULADOR -->
+   <Teleport to="body">
+     <div v-if="modalDuplicar" class="modal-overlay" @click.self="modalDuplicar = false">
+       <div class="modal-box sm">
+         <div class="modal-hdr">
+           <div class="modal-icon"><i class="ti ti-copy" aria-hidden="true"></i></div>
+           <div>
+             <p class="modal-title">Duplicar tabulador</p>
+             <p class="modal-sub">Origen: {{ duplicarOrigen?.nombre || duplicarOrigen?.zona }} ({{ duplicarOrigen?.items || 0 }} items)</p>
+           </div>
+           <button class="modal-close" @click="modalDuplicar = false"><i class="ti ti-x"></i></button>
+         </div>
+
+         <div class="modal-body-content">
+           <div class="field">
+             <label>Nueva zona <span class="req">*</span></label>
+             <select v-model="duplicarForm.id_zona" :class="{ error: duplicarErrors.id_zona }" :disabled="loadingCombos">
+               <option value="">Seleccione una zona</option>
+               <option v-for="z in zonas" :key="z.id" :value="z.id">{{ z.zona }}</option>
+             </select>
+             <span v-if="duplicarErrors.id_zona" class="err-msg">{{ duplicarErrors.id_zona }}</span>
+           </div>
+
+           <div class="field">
+             <label>Nombre</label>
+             <input v-model="duplicarForm.nombre" placeholder="TABULADOR LÍNEA 1 2026"
+               @input="duplicarForm.nombre = duplicarForm.nombre.toUpperCase()" />
+           </div>
+
+           <div class="field-row">
+             <div class="field">
+               <label>Vigencia inicio <span class="req">*</span></label>
+               <input type="date" v-model="duplicarForm.vigencia_inicio" :class="{ error: duplicarErrors.vigencia_inicio }" />
+               <span v-if="duplicarErrors.vigencia_inicio" class="err-msg">{{ duplicarErrors.vigencia_inicio }}</span>
+             </div>
+             <div class="field">
+               <label>Vigencia fin <span style="color:var(--tx3);font-size:11px">(opcional)</span></label>
+               <input type="date" v-model="duplicarForm.vigencia_fin" />
+             </div>
+           </div>
+
+           <div class="alert-info">
+             <i class="ti ti-info-circle"></i>
+             Se copiarán los {{ duplicarOrigen?.items || 0 }} item(s) (puestos, sueldos, bonos, descuentos)
+             del tabulador origen a este nuevo tabulador.
+           </div>
+         </div>
+
+         <div class="modal-footer">
+           <button class="btn-sm" @click="modalDuplicar = false" :disabled="savingDuplicar">Cancelar</button>
+           <button class="btn-primary-lg" :disabled="savingDuplicar" @click="confirmarDuplicar">
+             <i class="ti ti-loader-2 spin" v-if="savingDuplicar" aria-hidden="true"></i>
+             <i class="ti ti-copy" v-else aria-hidden="true"></i>
+             {{ savingDuplicar ? 'Duplicando...' : 'Duplicar tabulador' }}
+           </button>
+         </div>
+       </div>
+     </div>
+   </Teleport>
+
+
   </div>
 </template>
 
@@ -346,6 +410,12 @@ const nuevoForm  = reactive({ id_zona: '', nombre: '', vigencia_inicio: '', vige
 const nuevoErrors = reactive({})
 const editarForm = reactive({ id: '', id_zona: '', zona: '', nombre: '', vigencia_inicio: '', vigencia_fin: '', estatus: '1' })
 const itemForm   = reactive({ id_tabulador: '', id_puesto: '', sueldo: '', bono: '', descuento: '' })
+
+const modalDuplicar   = ref(false)
+   const savingDuplicar  = ref(false)
+   const duplicarOrigen  = ref(null)
+   const duplicarForm    = reactive({ id_zona: '', nombre: '', vigencia_inicio: '', vigencia_fin: '' })
+   const duplicarErrors  = reactive({})
 
 onMounted(async () => {
   ui.setBreadcrumbs([
@@ -384,6 +454,43 @@ function abrirNuevo() {
   Object.keys(nuevoErrors).forEach(k => delete nuevoErrors[k])
   modalNuevo.value = true
 }
+
+function abrirDuplicar(t) {
+     duplicarOrigen.value = t
+     duplicarForm.id_zona = ''
+     duplicarForm.nombre  = t.nombre ? `${t.nombre} (COPIA)` : ''
+     duplicarForm.vigencia_inicio = ''
+     duplicarForm.vigencia_fin    = ''
+     Object.keys(duplicarErrors).forEach(k => delete duplicarErrors[k])
+     modalDuplicar.value = true
+   }
+
+   function validateDuplicar() {
+     Object.keys(duplicarErrors).forEach(k => delete duplicarErrors[k])
+     let ok = true
+     if (!duplicarForm.id_zona)         { duplicarErrors.id_zona        = 'Selecciona una zona'; ok = false }
+     if (!duplicarForm.vigencia_inicio) { duplicarErrors.vigencia_inicio = 'La vigencia inicio es requerida'; ok = false }
+     return ok
+   }
+
+   async function confirmarDuplicar() {
+     if (!validateDuplicar()) return
+     savingDuplicar.value = true
+     try {
+       await tabuladorService.duplicar(duplicarOrigen.value.id, {
+         id_zona:         duplicarForm.id_zona,
+         nombre:          duplicarForm.nombre,
+         vigencia_inicio: duplicarForm.vigencia_inicio,
+         vigencia_fin:    duplicarForm.vigencia_fin || null,
+       })
+       modalDuplicar.value = false
+       await loadData()
+     } catch (err) {
+       duplicarErrors.id_zona = err.response?.data?.message || 'Error al duplicar el tabulador'
+     } finally {
+       savingDuplicar.value = false
+     }
+   }
 
 function validateNuevo() {
   Object.keys(nuevoErrors).forEach(k => delete nuevoErrors[k])
@@ -695,5 +802,12 @@ select option { background: var(--bg1); }
 @media (max-width: 768px) {
   .items-layout { grid-template-columns: 1fr; }
   .items-form-panel { border-right: none; border-bottom: 0.5px solid var(--bdr); }
+}
+
+.alert-info {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-radius: 8px;
+  background: var(--acc-dim); border: 0.5px solid var(--acc);
+  color: var(--acc); font-size: 12px; line-height: 1.4;
 }
 </style>

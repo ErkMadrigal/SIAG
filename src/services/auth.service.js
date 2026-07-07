@@ -6,7 +6,7 @@ const SLUG_A_VISTAS = {
   'incidencias':  ['incidencias'],
   'asistencias':  ['biometrico', 'registros'],
   'biometrico':   ['biometrico', 'registros'],
-  'reportes':     ['prenomina', 'altas_bajas'],
+  'reportes': ['prenomina', 'altas_bajas', 'cargar_nomina', 'nomina_workflow', 'revisar_nomina', 'dispersar_nomina'],
   'usuarios':     ['usuarios'],
   'empresas':     ['catalogos', 'hospitales'],
   'catalogos':    ['catalogos'],
@@ -15,6 +15,8 @@ const SLUG_A_VISTAS = {
   'importaciones':['importaciones'],
   'colaboradores':['colaboradores'],
 }
+
+
 
 function slugsAVistas(slugs = []) {
   const vistas = new Set()

@@ -17,7 +17,12 @@ export const VISTAS_MAP = {
   biometrico:    { path: '/biometrico',      label: 'Biométrico',    icon: 'ti-fingerprint',       section: 'Asistencias' },
   registros:     { path: '/registros',       label: 'Registros',     icon: 'ti-clipboard-list',    section: 'Asistencias' },
   prenomina:     { path: '/prenomina',       label: 'Pre-nómina',    icon: 'ti-chart-bar',         section: 'Reportes' },
+  cargar_nomina: { path: '/cargar-nomina', label: 'Cargar nómina', icon: 'ti-cloud-upload', section: 'Reportes' },
+
+  nomina_workflow: { path: '/nominas', label: 'Nóminas', icon: 'ti-list-check', section: 'Reportes' },
+
   altas_bajas:   { path: '/altas-bajas',     label: 'Altas y Bajas', icon: 'ti-arrows-up-down',    section: 'Reportes' },
+  
   incidencias:   { path: '/incidencias',     label: 'Incidencias',   icon: 'ti-alert-triangle',    section: 'Reportes' },
   hospitales:    { path: '/hospitales',      label: 'Hospitales',    icon: 'ti-building-hospital', section: 'Administración' },
   catalogos:     { path: '/catalogos',       label: 'Catálogos',     icon: 'ti-list',              section: 'Administración' },
@@ -49,6 +54,7 @@ const routes = [
       { path: 'biometrico',            name: 'biometrico',        component: () => import('@/views/BiometricoView.vue'),                                  meta: { vista: 'biometrico' } },
       { path: 'registros',             name: 'registros',         component: () => import('@/views/RegistrosView.vue'),                                   meta: { vista: 'registros' } },
       { path: 'prenomina',             name: 'prenomina',         component: () => import('@/views/PrenominaView.vue'),                                   meta: { vista: 'prenomina' } },
+      { path: 'cargar-nomina', name: 'cargar-nomina', component: () => import('@/views/ProcesarXlsmView.vue'), meta: { vista: 'cargar_nomina' } },
       { path: 'altas-bajas',           name: 'altas-bajas',       component: () => import('@/views/AltasBajasView.vue'),                                  meta: { vista: 'altas_bajas' } },
       { path: 'incidencias',           name: 'incidencias',       component: () => import('@/views/IncidenciasView.vue'),                                  meta: { vista: 'incidencias' } },
       { path: 'hospitales',            name: 'hospitales',        component: () => import('@/views/PlaceholderView.vue'),                                  meta: { vista: 'hospitales' } },
@@ -62,7 +68,7 @@ const routes = [
       { path: 'perfil', name: 'perfil', component: () => import('@/views/PerfilView.vue'), meta: { vista: 'home' } },
       { path: 'control-area', name: 'control-area', component: () => import('@/views/ControlAreaView.vue'), meta: { vista: 'home' } },
       { path: 'actividades', name: 'actividades', component: () => import('@/views/ActividadesView.vue'), meta: { vista: 'home' } },
-
+      { path: 'nominas', name: 'nomina-workflow', component: () => import('@/views/NominaWorkflowView.vue'), meta: { vista: 'nomina_workflow' } },
 
     ]
   },
@@ -80,11 +86,11 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const auth = useAuthStore()
 
-  // Resetear sesión expirada al navegar al login
   if (to.name === 'login') {
     sesionExpirada.value = false
   }
 
+  // ← MOVER aquí, antes de evaluar vistas
   if (!auth.user && auth.accessToken) {
     auth.restoreSession()
   }
@@ -98,8 +104,8 @@ router.beforeEach((to, from, next) => {
     return next({ name: 'login', query: { redirect: to.fullPath } })
   }
 
-  // 'home' siempre accesible para todos los autenticados
   if (to.meta.vista && to.meta.vista !== 'home') {
+    // ← Ahora user ya está restaurado, userVistas calcula bien
     const tieneAcceso = auth.userVistas.includes(to.meta.vista)
     if (!tieneAcceso) return next('/')
   }

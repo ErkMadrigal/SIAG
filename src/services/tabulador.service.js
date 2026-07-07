@@ -18,7 +18,6 @@ export const tabuladorService = {
 
   async getPuestos() {
     const { data } = await api.get('/tabulador/puestos')
-    // Filtrar solo puestos (id_catalogo = 10) y mapear valor → puesto
     return (data.data || [])
       .filter(p => String(p.id_catalogo) === '10')
       .map(p => ({ id: p.id, puesto: p.valor }))
@@ -29,23 +28,30 @@ export const tabuladorService = {
     return data
   },
 
+  async update(id, payload) {
+    const { data } = await api.put(`/tabulador/${id}`, payload)
+    return data
+  },
+
+  async duplicar(idOrigen, payload) {
+    const { data } = await api.post(`/tabulador/${idOrigen}/duplicar`, payload)
+    return data
+  },
+
   async upsertItem(payload) {
     const { data } = await api.post(`/tabulador/${payload.id_tabulador}/item`, payload)
     return data
   },
 
+  // ← FIX: la ruta real es singular "item" (no "items"), según Routes.php:
+  //   $routes->delete('item/(:num)', 'Api\V1\ReportesController::deshabilitarItem/$1');
   async disableItem(id_item) {
-    const { data } = await api.delete(`/tabulador/items/${id_item}`)
+    const { data } = await api.delete(`/tabulador/item/${id_item}`)
     return data
   },
 
   async setEstatus(id, estatus) {
     const { data } = await api.patch(`/tabulador/${id}/estatus`, { estatus })
-    return data
-  },
-
-  async update(id, payload) {
-    const { data } = await api.put(`/tabulador/${id}`, payload)
     return data
   },
 }

@@ -1,14 +1,17 @@
 import axios from 'axios'
 import { sesionExpirada } from '@/composables/useInactividad.js'
 
-// ── BASE URL ──────────────────────────────────────────────────────────
-// PRODUCCIÓN
-// const BASE_URL   = 'https://serprosep.vinculasag.com/api/v1'
-// const REFRESH_URL = 'https://serprosep.vinculasag.com/api/v1/auth/refresh'
 
-// LOCAL (descomentar para pruebas locales y comentar las de arriba)
-const BASE_URL    = '/api/v1'
-const REFRESH_URL = '/api/v1/auth/refresh'
+// — BASE URL ————————————————————————————————
+const isProduction = import.meta.env.PROD
+
+const BASE_URL    = isProduction
+  ? 'https://serprosep.vinculasag.com/api/v1'
+  : '/api/v1'
+
+const REFRESH_URL = isProduction
+  ? 'https://serprosep.vinculasag.com/api/v1/auth/refresh'
+  : '/api/v1/auth/refresh'
 
 const api = axios.create({
   baseURL: BASE_URL,

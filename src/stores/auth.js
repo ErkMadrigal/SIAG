@@ -22,9 +22,10 @@ export const useAuthStore = defineStore('auth', () => {
     const nivel = user.value?.nivel ?? user.value?.rol_nivel
     if (nivel === 1) return [
       'dashboard', 'empleados', 'colaboradores', 'biometrico',
-      'registros', 'prenomina', 'altas_bajas', 'incidencias',
-      'hospitales', 'catalogos', 'tabulador', 'usuarios',
-      'configuracion', 'importaciones',
+      'registros', 'prenomina', 'cargar_nomina', 'altas_bajas',
+      'nomina_workflow', 'revisar_nomina', 'dispersar_nomina',   
+      'incidencias', 'hospitales', 'catalogos', 'tabulador',
+      'usuarios', 'configuracion', 'importaciones',
     ]
     return user.value?.vistas || []
   })
