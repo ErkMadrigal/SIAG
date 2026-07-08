@@ -11,53 +11,91 @@
       <i class="ti ti-loader-2 spin"></i> Cargando nóminas...
     </div>
 
-    <div v-else class="kanban">
-      <!-- Columna 1: Cargar -->
-      <div class="kanban-col" v-if="tieneAcceso('cargar_nomina')">
-        <div class="kanban-col-hdr">
-          <i class="ti ti-upload"></i>
-          <span>Cargar</span>
+    <div v-else class="kanban-wrap">
+      <!-- Botón compacto de Cargar -->
+      <router-link
+        v-if="tieneAcceso('cargar_nomina')"
+        :to="{ name: 'cargar-nomina' }"
+        class="btn-cargar-compacto"
+      >
+        <div class="bcc-icon"><i class="ti ti-cloud-upload"></i></div>
+        <div class="bcc-text">
+          <p class="bcc-title">Cargar nueva plantilla</p>
+          <p class="bcc-sub">Sube un .xlsm de Altas, Bajas y Asistencia</p>
         </div>
-        <div class="kanban-col-body">
-          <router-link :to="{ name: 'cargar-nomina' }" class="kanban-card kanban-card--accion">
-            <i class="ti ti-file-plus"></i>
-            <span>Cargar nueva plantilla</span>
-          </router-link>
-        </div>
-      </div>
+        <i class="ti ti-chevron-right bcc-arrow"></i>
+      </router-link>
 
-      <!-- Columna 2: Revisar / Aprobar (estatus = borrador) -->
-      <div class="kanban-col" v-if="tieneAcceso('revisar_nomina')">
-        <div class="kanban-col-hdr">
-          <i class="ti ti-clipboard-check"></i>
-          <span>Por revisar</span>
-          <span class="kanban-count">{{ porRevisar.length }}</span>
-        </div>
-        <div class="kanban-col-body">
-          <p v-if="porRevisar.length === 0" class="kanban-empty">No hay nóminas pendientes</p>
-          <div v-for="n in porRevisar" :key="n.id" class="kanban-card" @click="idSeleccionado = n.id">
-            <p class="kc-nombre">{{ n.nombre }}</p>
-            <p class="kc-sub muted">{{ n.periodo_inicio }} → {{ n.periodo_fin }}</p>
-            <p class="kc-total mono">{{ formatMoney(n.total_pagar) }}</p>
-            <p class="kc-emp muted">{{ n.total_empleados }} empleados</p>
+      <div class="kanban">
+        <!-- Columna: Revisar / Aprobar (estatus = borrador) -->
+        <div class="kanban-col" v-if="tieneAcceso('revisar_nomina')">
+          <div class="kanban-col-hdr">
+            <i class="ti ti-clipboard-check"></i>
+            <span>Por revisar</span>
+            <span class="kanban-count">{{ porRevisar.length }}</span>
+          </div>
+          <div class="kanban-col-body">
+            <p v-if="porRevisar.length === 0" class="kanban-empty">No hay nóminas pendientes</p>
+            <div v-for="n in porRevisar" :key="n.id" class="lote-card">
+              <div class="lote-card-top" @click="idSeleccionado = n.id">
+                <p class="lc-nombre">{{ n.nombre }}</p>
+                <p class="lc-periodo">{{ n.periodo_inicio }} → {{ n.periodo_fin }}</p>
+              </div>
+              <div class="lote-card-cargas" v-if="n.cargas?.length">
+                <span v-for="c in n.cargas" :key="c.id" class="lote-badge" :class="'lote-badge--'+c.estatus">
+                  {{ c.nombre_carga }}
+                  <i v-if="c.estatus === 'completa'" class="ti ti-check"></i>
+                  <i v-else class="ti ti-loader-2 spin"></i>
+                </span>
+              </div>
+              <div class="lote-card-bottom">
+                <div>
+                  <p class="lc-total">{{ formatMoney(n.total_pagar) }}</p>
+                  <p class="lc-emp">{{ n.total_empleados }} empleados</p>
+                </div>
+                <div class="lote-card-actions">
+                  <button class="lc-btn lc-btn--add" title="Agregar otra carga a este lote" @click.stop="irACargarEnLote(n.id)">
+                    <i class="ti ti-plus"></i>
+                  </button>
+                  <button class="lc-btn lc-btn--ver" title="Revisar" @click.stop="idSeleccionado = n.id">
+                    <i class="ti ti-eye"></i>
+                  </button>
+                  <button class="lc-btn lc-btn--rechazar" title="Rechazar lote" @click.stop="confirmarRechazo(n)">
+                    <i class="ti ti-x"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Columna 3: Dispersar (estatus = aprobada) -->
-      <div class="kanban-col" v-if="tieneAcceso('dispersar_nomina')">
-        <div class="kanban-col-hdr">
-          <i class="ti ti-cash"></i>
-          <span>Por dispersar</span>
-          <span class="kanban-count">{{ porDispersar.length }}</span>
-        </div>
-        <div class="kanban-col-body">
-          <p v-if="porDispersar.length === 0" class="kanban-empty">No hay nóminas aprobadas</p>
-          <div v-for="n in porDispersar" :key="n.id" class="kanban-card kanban-card--aprobada" @click="idSeleccionado = n.id">
-            <p class="kc-nombre">{{ n.nombre }}</p>
-            <p class="kc-sub muted">{{ n.periodo_inicio }} → {{ n.periodo_fin }}</p>
-            <p class="kc-total mono grn">{{ formatMoney(n.total_pagar) }}</p>
-            <p class="kc-emp muted">{{ n.total_empleados }} empleados</p>
+        <!-- Columna: Por dispersar (estatus = aprobada) -->
+        <div class="kanban-col" v-if="tieneAcceso('dispersar_nomina')">
+          <div class="kanban-col-hdr">
+            <i class="ti ti-cash"></i>
+            <span>Por dispersar</span>
+            <span class="kanban-count">{{ porDispersar.length }}</span>
+          </div>
+          <div class="kanban-col-body">
+            <p v-if="porDispersar.length === 0" class="kanban-empty">No hay nóminas aprobadas</p>
+            <div v-for="n in porDispersar" :key="n.id" class="lote-card lote-card--aprobada" @click="idSeleccionado = n.id">
+              <div class="lote-card-top">
+                <p class="lc-nombre">{{ n.nombre }}</p>
+                <p class="lc-periodo">{{ n.periodo_inicio }} → {{ n.periodo_fin }}</p>
+              </div>
+              <div class="lote-card-cargas" v-if="n.cargas?.length">
+                <span v-for="c in n.cargas" :key="c.id" class="lote-badge lote-badge--completa">
+                  {{ c.nombre_carga }} <i class="ti ti-check"></i>
+                </span>
+              </div>
+              <div class="lote-card-bottom">
+                <div>
+                  <p class="lc-total lc-total--grn">{{ formatMoney(n.total_pagar) }}</p>
+                  <p class="lc-emp">{{ n.total_empleados }} empleados</p>
+                </div>
+                <button class="lc-btn lc-btn--ver"><i class="ti ti-eye"></i></button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -115,6 +153,31 @@
       @actualizado="cargarNominas"
     />
   </div>
+
+  <Teleport to="body">
+    <div v-if="loteARechazar" class="modal-overlay" @click.self="loteARechazar = null">
+      <div class="confirm-modal confirm-modal--danger">
+        <div class="cm-icon"><i class="ti ti-alert-triangle"></i></div>
+        <p class="cm-title">Rechazar nómina</p>
+        <p class="cm-sub">
+          <strong>{{ loteARechazar.nombre }}</strong> quedará marcada como rechazada.
+          Esta acción no se puede deshacer.
+        </p>
+        <textarea
+          v-model="motivoRechazo"
+          placeholder="Motivo del rechazo (opcional)..."
+          class="cm-textarea"
+          rows="3"
+        ></textarea>
+        <div class="cm-actions">
+          <button class="cm-btn cm-btn--ghost" @click="loteARechazar = null" :disabled="rechazando">Cancelar</button>
+          <button class="cm-btn cm-btn--danger" @click="ejecutarRechazo" :disabled="rechazando">
+            {{ rechazando ? 'Rechazando...' : 'Sí, rechazar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -122,6 +185,8 @@ import { ref, computed, onMounted } from 'vue'
 import api from '@/services/api.js'
 import NominaDetalleModal from '@/components/ui/NominaDetalleModal.vue'
 import { useAuthStore } from '@/stores/auth.js'
+import { useRouter } from 'vue-router'
+const router = useRouter()
 
 const auth = useAuthStore()
 
@@ -138,6 +203,33 @@ const mostrarDispersadas = ref(false)
 const porRevisar   = computed(() => nominas.value.filter(n => n.estatus === 'borrador'))
 const porDispersar = computed(() => nominas.value.filter(n => n.estatus === 'aprobada'))
 const dispersadas  = computed(() => nominas.value.filter(n => n.estatus === 'dispersada'))
+
+const loteARechazar = ref(null)
+const motivoRechazo  = ref('')
+const rechazando     = ref(false)
+
+function irACargarEnLote(idNomina) {
+  router.push({ name: 'cargar-nomina', query: { id_nomina: idNomina } })
+}
+
+function confirmarRechazo(nomina) {
+  loteARechazar.value = nomina
+  motivoRechazo.value = ''
+}
+
+async function ejecutarRechazo() {
+  if (!loteARechazar.value) return
+  rechazando.value = true
+  try {
+    await api.post(`/nomina-fatiga/${loteARechazar.value.id}/rechazar`, { comentario: motivoRechazo.value })
+    loteARechazar.value = null
+    await cargarNominas()
+  } catch (err) {
+    console.error('Error rechazando:', err)
+  } finally {
+    rechazando.value = false
+  }
+}
 
 async function cargarNominas() {
   cargando.value = true
@@ -170,7 +262,31 @@ onMounted(cargarNominas)
 
 .loading-box { display:flex; align-items:center; gap:8px; padding:40px; justify-content:center; color:var(--tx2); }
 
-.kanban { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; align-items:start; }
+.kanban-wrap { display:flex; flex-direction:column; gap:14px; }
+
+.btn-cargar-compacto {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-radius: 12px;
+  border: 1.5px dashed var(--bdr2); background: var(--bg1);
+  text-decoration: none; transition: all .18s;
+}
+.btn-cargar-compacto:hover {
+  border-color: var(--acc); background: var(--acc-dim);
+}
+.bcc-icon {
+  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+  background: var(--acc-dim); color: var(--acc);
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  transition: all .18s;
+}
+.btn-cargar-compacto:hover .bcc-icon { background: var(--acc); color: #fff; }
+.bcc-text { flex: 1; }
+.bcc-title { font-size: 13px; font-weight: 600; color: var(--tx0); }
+.bcc-sub { font-size: 11px; color: var(--tx2); margin-top: 2px; }
+.bcc-arrow { color: var(--tx2); font-size: 16px; transition: transform .18s; }
+.btn-cargar-compacto:hover .bcc-arrow { transform: translateX(3px); color: var(--acc); }
+
+.kanban { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
 .kanban-col {
   background:var(--bg1); border:0.5px solid var(--bdr); border-radius:12px;
   display:flex; flex-direction:column; min-height:200px;
@@ -186,23 +302,6 @@ onMounted(cargarNominas)
 }
 .kanban-col-body { padding:12px; display:flex; flex-direction:column; gap:10px; }
 .kanban-empty { text-align:center; color:var(--tx2); font-size:12px; padding:16px 0; }
-
-.kanban-card {
-  background:var(--bg2); border:0.5px solid var(--bdr2); border-radius:10px;
-  padding:12px; cursor:pointer; transition:all .15s; text-decoration:none; display:block;
-}
-.kanban-card:hover { border-color:var(--acc); background:var(--acc-dim); }
-.kanban-card--aprobada { border-left:3px solid var(--grn); }
-.kanban-card--accion {
-  display:flex; align-items:center; justify-content:center; gap:8px;
-  color:var(--acc); font-weight:500; font-size:13px; padding:20px;
-  border:1.5px dashed var(--bdr2);
-}
-.kanban-card--accion:hover { border-color:var(--acc); background:var(--acc-dim); }
-.kc-nombre { font-size:13px; font-weight:600; color:var(--tx0); margin-bottom:4px; }
-.kc-sub { font-size:11px; margin-bottom:6px; }
-.kc-total { font-size:14px; font-weight:600; }
-.kc-emp { font-size:11px; margin-top:4px; }
 
 .sec-dispersadas { background:var(--bg1); border:0.5px solid var(--bdr); border-radius:12px; overflow:hidden; }
 .sec-dispersadas-hdr {
@@ -235,4 +334,48 @@ onMounted(cargarNominas)
 @media (max-width:900px) {
   .kanban { grid-template-columns:1fr; }
 }
+
+.lote-card {
+  background:linear-gradient(180deg, var(--bg2), var(--bg1));
+  border:0.5px solid var(--bdr2); border-radius:12px;
+  overflow:hidden; cursor:pointer; transition:all .18s;
+}
+.lote-card:hover { border-color:var(--acc); box-shadow:0 4px 16px rgba(0,0,0,.25); transform:translateY(-1px); }
+.lote-card--aprobada { border-left:3px solid var(--grn); }
+
+.lote-card-top { padding:14px 14px 6px; }
+.lc-nombre { font-size:13.5px; font-weight:600; color:var(--tx0); }
+.lc-periodo { font-size:11px; color:var(--tx2); margin-top:3px; }
+
+.lote-card-cargas {
+  display:flex; flex-wrap:wrap; gap:5px; padding:0 14px 10px;
+}
+.lote-badge {
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:10px; padding:3px 8px; border-radius:20px;
+  background:var(--bg3); color:var(--tx2); border:0.5px solid var(--bdr2);
+}
+.lote-badge--completa { background:rgba(34,201,122,.1); color:var(--grn); border-color:var(--grn); }
+.lote-badge--procesando { background:var(--acc-dim); color:var(--acc); border-color:var(--acc); }
+.lote-badge i { font-size:10px; }
+
+.lote-card-bottom {
+  display:flex; align-items:flex-end; justify-content:space-between;
+  padding:10px 14px 14px; border-top:0.5px solid var(--bdr);
+  background:rgba(0,0,0,.15);
+}
+.lc-total { font-size:15px; font-weight:700; color:var(--tx0); font-family:monospace; }
+.lc-total--grn { color:var(--grn); }
+.lc-emp { font-size:10.5px; color:var(--tx2); margin-top:2px; }
+
+.lote-card-actions { display:flex; gap:5px; }
+.lc-btn {
+  width:28px; height:28px; border-radius:7px; border:0.5px solid var(--bdr2);
+  background:var(--bg2); color:var(--tx2); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:13px;
+  transition:all .15s;
+}
+.lc-btn--add:hover { background:var(--acc-dim); color:var(--acc); border-color:var(--acc); }
+.lc-btn--ver:hover { background:var(--bg3); color:var(--tx0); }
+.lc-btn--rechazar:hover { background:var(--red-dim); color:var(--red); border-color:var(--red); }
 </style>

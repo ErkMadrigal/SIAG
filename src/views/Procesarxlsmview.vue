@@ -101,6 +101,59 @@
       </div>
       <div class="sec-body">
 
+        <div class="field" style="margin-bottom: 16px;">
+          <label>¿A dónde va esta carga?</label>
+          <div class="lote-toggle">
+            <button
+              type="button"
+              class="lote-toggle-opt"
+              :class="{ active: modoLote === 'nuevo' }"
+              @click="modoLote = 'nuevo'"
+            >
+              <div class="lto-icon"><i class="ti ti-folder-plus"></i></div>
+              <div class="lto-text">
+                <p class="lto-title">Crear nuevo lote</p>
+                <p class="lto-sub">Empieza una nómina desde cero</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              class="lote-toggle-opt"
+              :class="{ active: modoLote === 'existente', disabled: !lotesAbiertos.length }"
+              :disabled="!lotesAbiertos.length"
+              @click="modoLote = 'existente'"
+            >
+              <div class="lto-icon"><i class="ti ti-stack-2"></i></div>
+              <div class="lto-text">
+                <p class="lto-title">Agregar a lote existente</p>
+                <p class="lto-sub">{{ lotesAbiertos.length }} lote{{ lotesAbiertos.length === 1 ? '' : 's' }} abierto{{ lotesAbiertos.length === 1 ? '' : 's' }}</p>
+              </div>
+              <span class="lto-badge" v-if="lotesAbiertos.length">{{ lotesAbiertos.length }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="modoLote === 'existente'" class="lote-select-wrap">
+          <select v-model="loteSeleccionado" class="lote-select">
+            <option :value="null" disabled>Selecciona un lote...</option>
+            <option v-for="l in lotesAbiertos" :key="l.id" :value="l.id">
+              {{ l.nombre }} — {{ l.total_empleados }} empleados ({{ l.cargas?.length || 0 }} cargas)
+            </option>
+          </select>
+
+          <div v-if="loteSeleccionado" class="lote-preview">
+            <span class="lp-label">Cargas ya incluidas:</span>
+            <div class="lp-cargas">
+              <span v-for="c in lotesAbiertos.find(l => l.id === loteSeleccionado)?.cargas" :key="c.id" class="lote-badge" :class="'lote-badge--'+c.estatus">
+                {{ c.nombre_carga }} · {{ c.total_empleados }}
+                <i v-if="c.estatus === 'completa'" class="ti ti-check"></i>
+                <i v-else class="ti ti-loader-2 spin"></i>
+              </span>
+            </div>
+          </div>
+        </div>
+
         <div
           class="dropzone"
           :class="{ 'is-dragging': isDragging, 'has-file': !!archivo, 'procesando': procesando }"
@@ -128,7 +181,7 @@
         </div>
 
         <!-- Nombre y periodo -->
-        <div class="filtros-grid filtros-grid--3">
+        <div class="filtros-grid filtros-grid--3" v-if="modoLote === 'nuevo'">
           <div class="field">
             <label>Nombre de la nómina <span class="req">*</span></label>
             <input type="text" v-model="nombre" :disabled="procesando"
@@ -533,6 +586,36 @@ const deduccionesResumen = ref([])
 
 const mostrarModalDispersion = ref(false)
 
+const modoLote      = ref('nuevo') // 'nuevo' | 'existente'
+const lotesAbiertos = ref([])
+const loteSeleccionado = ref(null)
+const cargandoLotes = ref(false)
+
+import { useRoute } from 'vue-router'
+const route = useRoute()
+
+onMounted(() => {
+  if (route.query.id_nomina) {
+    modoLote.value = 'existente'
+    cargarLotesAbiertos().then(() => {
+      loteSeleccionado.value = Number(route.query.id_nomina)
+    })
+  }
+})
+
+async function cargarLotesAbiertos() {
+  cargandoLotes.value = true
+  try {
+    const { data } = await api.get('/nomina-fatiga/lotes-abiertos')
+    lotesAbiertos.value = data.data || []
+  } catch (err) {
+    console.error('Error cargando lotes:', err)
+  } finally {
+    cargandoLotes.value = false
+  }
+}
+
+onMounted(cargarLotesAbiertos)
 
 
 async function cargarDeduccion(tipo, event) {
@@ -640,7 +723,13 @@ function limpiar() {
 }
 
 async function iniciarProceso() {
-  if (!archivo.value || !nombre.value.trim()) return
+  if (!archivo.value) return
+  if (modoLote.value === 'nuevo' && !nombre.value.trim()) return
+  if (modoLote.value === 'existente' && !loteSeleccionado.value) {
+    errorMsg.value = 'Selecciona un lote existente'
+    return
+  }
+
 
   procesando.value  = true
   errorMsg.value    = ''
@@ -649,14 +738,19 @@ async function iniciarProceso() {
   chunkTotal.value  = 0
   pasos.value = { altas: 'cargando', bajas: 'pendiente', nomina: 'pendiente' }
 
+
   try {
     const fd = new FormData()
     fd.append('archivo', archivo.value)
-    fd.append('nombre', nombre.value.trim())
-    if (periodoInicio.value) fd.append('periodo_inicio', periodoInicio.value)
-    if (periodoFin.value)    fd.append('periodo_fin', periodoFin.value)
 
-    // Paso 1+2+inicio asistencia en una sola llamada
+    if (modoLote.value === 'existente') {
+      fd.append('id_nomina', loteSeleccionado.value)
+    } else {
+      fd.append('nombre', nombre.value.trim())
+      if (periodoInicio.value) fd.append('periodo_inicio', periodoInicio.value)
+      if (periodoFin.value)    fd.append('periodo_fin', periodoFin.value)
+    }
+
     const res = await nominaFatigaService.procesarXlsm(fd)
 
     if (res.status !== 'ok') {
@@ -778,242 +872,8 @@ function formatMoney(v) {
 </script>
 
 <style scoped>
-.xlsm-view { display:flex; flex-direction:column; gap:14px; }
-.view-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
-.view-title  { font-size:20px; font-weight:600; color:var(--tx0); }
-.view-sub    { font-size:12px; color:var(--tx2); margin-top:3px; }
-
-.sec { background:var(--bg1); border:0.5px solid var(--bdr); border-radius:12px; overflow:hidden; }
-.sec-hdr {
-  display:flex; align-items:center; gap:8px;
-  padding:12px 16px; border-bottom:0.5px solid var(--bdr);
-  font-size:13px; font-weight:500; color:var(--tx0);
-}
-.sec-hdr i { font-size:16px; color:var(--acc); }
-.sec-body { padding:16px; display:flex; flex-direction:column; gap:14px; }
-
-/* Dropzone */
-.dropzone {
-  position:relative; border:2px dashed var(--bdr2); border-radius:12px;
-  padding:36px 20px; display:flex; flex-direction:column;
-  align-items:center; gap:6px; text-align:center;
-  cursor:pointer; transition:all .15s; background:var(--bg2);
-}
-.dropzone:hover, .dropzone.is-dragging { border-color:var(--acc); background:var(--acc-dim); }
-.dropzone.has-file  { border-color:var(--grn); background:rgba(34,201,122,.06); }
-.dropzone.procesando { cursor:default; opacity:.7; }
-.dz-icon {
-  width:52px; height:52px; border-radius:14px;
-  background:var(--acc-dim); color:var(--acc);
-  display:flex; align-items:center; justify-content:center; font-size:26px; margin-bottom:4px;
-}
-.dz-icon.ok { background:rgba(34,201,122,.12); color:var(--grn); }
-.dz-title { font-size:14px; font-weight:600; color:var(--tx0); }
-.dz-sub   { font-size:12px; color:var(--tx2); }
-.dz-clear {
-  position:absolute; top:10px; right:10px;
-  width:26px; height:26px; border-radius:6px;
-  background:var(--bg3); border:0.5px solid var(--bdr);
-  color:var(--tx2); cursor:pointer;
-  display:flex; align-items:center; justify-content:center; font-size:13px;
-}
-.dz-clear:hover { background:var(--red-dim); color:var(--red); }
-
-/* Pasos */
-.pasos-wrap { padding:16px; display:flex; flex-direction:column; gap:0; }
-.paso {
-  display:flex; align-items:flex-start; gap:14px;
-  padding:16px 0; border-bottom:0.5px solid var(--bdr);
-  transition:all .2s;
-}
-.paso:last-child { border-bottom:none; }
-.paso-icono {
-  width:36px; height:36px; border-radius:50%; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
-  font-size:16px; font-weight:700;
-  background:var(--bg3); color:var(--tx2);
-  transition:all .2s;
-}
-.paso-num { font-size:14px; font-weight:700; }
-.paso--ok .paso-icono      { background:rgba(34,201,122,.15); color:var(--grn); }
-.paso--error .paso-icono   { background:var(--red-dim); color:var(--red); }
-.paso--cargando .paso-icono { background:var(--acc-dim); color:var(--acc); }
-.paso-titulo { font-size:13px; font-weight:600; color:var(--tx0); }
-.paso-desc   { font-size:12px; color:var(--tx2); margin-top:3px; }
-.muted       { opacity:.6; }
-
-/* Chunk bar en el paso 3 */
-.chunk-bar-wrap { display:flex; align-items:center; gap:8px; margin-top:8px; }
-.chunk-bar {
-  flex:1; height:6px; background:var(--bg3); border-radius:6px; overflow:hidden;
-}
-.chunk-fill {
-  height:100%; border-radius:6px;
-  background:linear-gradient(90deg, var(--acc), var(--acc2));
-  transition:width .4s ease;
-}
-.chunk-pct { font-size:11px; color:var(--acc); font-weight:600; min-width:32px; }
-
-/* Resultado */
-.resultado-sec .sec-hdr i { color:var(--grn); }
-.resultado-grid {
-  display:grid; grid-template-columns:repeat(4,1fr);
-  border-bottom:0.5px solid var(--bdr);
-}
-.resultado-card {
-  display:flex; flex-direction:column; align-items:center; gap:4px;
-  padding:20px; border-right:0.5px solid var(--bdr);
-}
-.resultado-card:last-child { border-right:none; }
-.rc-val   { font-size:22px; font-weight:700; font-family:monospace; color:var(--tx0); }
-.rc-label { font-size:11px; color:var(--tx2); text-transform:uppercase; letter-spacing:.6px; }
-.resultado-card.green .rc-val { color:var(--grn); }
-.resultado-card.red   .rc-val { color:var(--red); }
-.resultado-card.blue  .rc-val { color:var(--acc); }
-.resultado-card.total { background:var(--bg2); }
-.resultado-card.total .rc-val { font-size:18px; color:var(--grn); }
-.resultado-actions {
-  padding:14px 16px; display:flex; justify-content:flex-end; gap:8px;
-}
-
-/* Fields */
-.filtros-grid--3 { display:grid; grid-template-columns:1fr 140px 140px; gap:12px; }
-.field { display:flex; flex-direction:column; gap:5px; }
-label  { font-size:12px; font-weight:500; color:var(--tx1); }
-.req   { color:var(--red); }
-input[type="date"], input[type="text"] {
-  background:var(--bg2); border:0.5px solid var(--bdr2);
-  border-radius:8px; padding:8px 10px;
-  font-size:13px; color:var(--tx0); outline:none;
-  font-family:inherit; transition:border .15s; width:100%;
-}
-input:focus { border-color:var(--acc); }
-input:disabled { opacity:.6; }
-
-.alert-warn {
-  display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:8px;
-  background:var(--amb-dim); border:0.5px solid var(--amb); color:var(--amb); font-size:13px;
-}
-.filtros-actions { display:flex; justify-content:flex-end; }
-
-.btn-sm {
-  display:inline-flex; align-items:center; gap:5px; padding:7px 14px; border-radius:8px;
-  border:0.5px solid var(--bdr2); background:transparent;
-  font-size:12px; color:var(--tx1); cursor:pointer; transition:all .15s; font-family:inherit;
-}
-.btn-sm:hover { background:var(--bg3); }
-.btn-primary-lg {
-  display:inline-flex; align-items:center; gap:6px; padding:8px 18px;
-  border-radius:8px; border:none; background:var(--acc);
-  font-size:13px; color:#fff; cursor:pointer; font-family:inherit;
-  font-weight:500; transition:background .15s;
-}
-.btn-primary-lg:hover:not(:disabled) { background:var(--acc2); }
-.btn-primary-lg:disabled { opacity:.6; cursor:not-allowed; }
-
-@keyframes spin { to { transform:rotate(360deg); } }
-.spin { display:inline-block; animation:spin .8s linear infinite; }
-
-@media (max-width:768px) {
-  .filtros-grid--3 { grid-template-columns:1fr; }
-  .resultado-grid  { grid-template-columns:1fr 1fr; }
-  .deducc-grid     { grid-template-columns:1fr; }
-}
-
-/* ── Deducciones ────────────────────────────────────────────── */
-.badge-opt {
-  font-size:10px; padding:2px 8px; border-radius:20px;
-  background:var(--bg3); color:var(--tx2); font-weight:500;
-}
-.deducc-resumen { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.deducc-pill {
-  display:inline-flex; align-items:center; gap:5px;
-  font-size:11px; padding:3px 10px; border-radius:20px;
-  background:rgba(34,201,122,.1); color:var(--grn);
-  border:0.5px solid var(--grn);
-}
-.deducc-pill i { font-size:11px; }
-.deducc-grid {
-  display:grid; grid-template-columns:repeat(3,1fr); gap:12px;
-}
-.deducc-card {
-  border:1.5px solid var(--bdr2); border-radius:12px;
-  padding:14px; display:flex; flex-direction:column; gap:12px;
-  background:var(--bg2); transition:all .2s;
-}
-.deducc-card.loaded { border-color:var(--grn); background:rgba(34,201,122,.04); }
-.deducc-card-hdr { display:flex; align-items:center; gap:10px; }
-.deducc-icon {
-  width:36px; height:36px; border-radius:10px;
-  background:var(--bg3); color:var(--tx2);
-  display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;
-}
-.deducc-icon.ok { background:rgba(34,201,122,.15); color:var(--grn); }
-.deducc-titulo { font-size:13px; font-weight:600; color:var(--tx0); }
-.deducc-desc   { font-size:11px; color:var(--tx2); margin-top:2px; }
-.btn-upload {
-  display:flex; align-items:center; justify-content:center; gap:6px;
-  padding:8px 14px; border-radius:8px; border:0.5px solid var(--bdr2);
-  background:var(--bg1); color:var(--tx1); font-size:12px;
-  cursor:pointer; transition:all .15s; font-family:inherit;
-}
-.btn-upload:hover { background:var(--acc-dim); color:var(--acc); border-color:var(--acc); }
-.btn-upload.loading { opacity:.6; cursor:not-allowed; }
-
-/* ── Tabs del modal ─────────────────────────────────────────── */
-.mn-tabs {
-  display:flex; gap:4px; padding:10px 16px;
-  border-bottom:0.5px solid var(--bdr); background:var(--bg2);
-}
-.mn-tab {
-  display:inline-flex; align-items:center; gap:5px;
-  padding:6px 14px; border-radius:8px; border:none;
-  background:transparent; color:var(--tx2);
-  font-size:12px; cursor:pointer; font-family:inherit; transition:all .15s;
-}
-.mn-tab:hover { background:var(--bg3); color:var(--tx0); }
-.mn-tab.active { background:var(--acc-dim); color:var(--acc); font-weight:500; }
-.mn-tab i { font-size:14px; }
-
-/* Grupos de columnas en thead */
-.th-grupo {
-  font-size:10px; font-weight:700; text-transform:uppercase;
-  letter-spacing:.5px; padding:5px 8px; border-bottom:0.5px solid var(--bdr);
-}
-.th-perc { background:rgba(34,201,122,.08); color:var(--grn); }
-.th-ded  { background:rgba(255,80,80,.08);  color:var(--red); }
-.th-tot  { background:var(--acc-dim); color:var(--acc); }
-.th-base { background:var(--bg3); color:var(--tx2); }
-
-.text-left { text-align:left !important; }
-.center { text-align:center !important; }
-.sin-resultados { text-align:center; padding:24px; color:var(--tx2); }
-
-/* ── Modal nómina ───────────────────────────────────────────── */
-.modal-overlay {
-  position:fixed; inset:0; background:rgba(0,0,0,.6);
-  display:flex; align-items:center; justify-content:center;
-  z-index:1000; padding:16px;
-}
-.modal-nomina {
-  background:var(--bg1); border:0.5px solid var(--bdr);
-  border-radius:16px; width:100%; max-width:1200px;
-  max-height:90vh; display:flex; flex-direction:column;
-  overflow:hidden;
-}
-.mn-header {
-  display:flex; align-items:flex-start; justify-content:space-between;
-  padding:18px 20px; border-bottom:0.5px solid var(--bdr); gap:12px;
-}
-.mn-title { font-size:16px; font-weight:600; color:var(--tx0); }
 .mn-sub   { font-size:12px; color:var(--tx2); margin-top:4px; }
 .mn-sub .grn { color:var(--grn); }
-.mn-close {
-  width:30px; height:30px; border-radius:8px; border:none;
-  background:var(--bg3); color:var(--tx2); cursor:pointer;
-  display:flex; align-items:center; justify-content:center; flex-shrink:0;
-}
-.mn-close:hover { background:var(--red-dim); color:var(--red); }
 
 .mn-filtros {
   display:flex; align-items:center; gap:10px; padding:12px 20px;
@@ -1040,6 +900,20 @@ input:disabled { opacity:.6; }
   display:flex; align-items:center; justify-content:center;
   gap:8px; padding:40px; color:var(--tx2); font-size:13px;
 }
+.mn-tabs {
+  display:flex; gap:4px; padding:10px 16px;
+  border-bottom:0.5px solid var(--bdr); background:var(--bg2);
+}
+.mn-tab {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:6px 14px; border-radius:8px; border:none;
+  background:transparent; color:var(--tx2);
+  font-size:12px; cursor:pointer; font-family:inherit; transition:all .15s;
+}
+.mn-tab:hover { background:var(--bg3); color:var(--tx0); }
+.mn-tab.active { background:var(--acc-dim); color:var(--acc); font-weight:500; }
+.mn-tab i { font-size:14px; }
+
 .mn-tabla { width:100%; border-collapse:collapse; font-size:12px; }
 .mn-tabla th {
   background:var(--bg2); color:var(--tx2); font-weight:500;
@@ -1055,6 +929,19 @@ input:disabled { opacity:.6; }
 .mn-tabla td:first-child,
 .mn-tabla td:nth-child(2) { text-align:left; }
 .mn-tabla tbody tr:hover { background:var(--bg2); }
+
+.th-grupo {
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.5px; padding:5px 8px; border-bottom:0.5px solid var(--bdr);
+}
+.th-perc { background:rgba(34,201,122,.08); color:var(--grn); }
+.th-ded  { background:rgba(255,80,80,.08);  color:var(--red); }
+.th-tot  { background:var(--acc-dim); color:var(--acc); }
+.th-base { background:var(--bg3); color:var(--tx2); }
+
+.text-left { text-align:left !important; }
+.center { text-align:center !important; }
+.sin-resultados { text-align:center; padding:24px; color:var(--tx2); }
 
 .col-nombre { min-width:180px; max-width:220px; }
 .col-zona   { max-width:160px; font-size:11px; color:var(--tx2); }
@@ -1077,7 +964,6 @@ input:disabled { opacity:.6; }
 
 .row-nuevo    { background:rgba(255,180,0,.04); }
 .row-sin-match { background:rgba(255,80,80,.05); }
-.row-festivo  td.mono.grn { font-weight:600; }
 
 .sticky-col {
   position:sticky; left:0; background:var(--bg1); z-index:2;
@@ -1100,4 +986,13 @@ input:disabled { opacity:.6; }
   display:flex; align-items:center; justify-content:space-between;
   padding:12px 20px; border-top:0.5px solid var(--bdr);
 }
+
+.badge-estatus {
+  font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600;
+  text-transform: uppercase; margin-left: 6px;
+}
+.badge-borrador   { background: var(--bg3); color: var(--tx2); }
+.badge-aprobada   { background: rgba(34,201,122,.15); color: var(--grn); }
+.badge-rechazada  { background: var(--red-dim); color: var(--red); }
+.badge-dispersada { background: var(--acc-dim); color: var(--acc); }
 </style>

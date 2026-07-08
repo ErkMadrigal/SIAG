@@ -7,6 +7,13 @@
           <div>
             <p class="mn-title">Resumen de nómina</p>
             <p class="mn-sub" v-if="nomina">
+              <div v-if="nomina?.cargas?.length > 1" class="mn-cargas-lista">
+                <span v-for="c in nomina.cargas" :key="c.id" class="deducc-pill">
+                  {{ c.nombre_carga }}: {{ c.total_empleados }}
+                  <i v-if="c.estatus === 'completa'" class="ti ti-check" style="color:var(--grn)"></i>
+                  <i v-else class="ti ti-loader-2 spin" style="color:var(--acc)"></i>
+                </span>
+              </div>
               {{ nomina.nombre }} ·
               {{ nomina.periodo_inicio }} → {{ nomina.periodo_fin || 'sin fecha fin' }} ·
               <strong>{{ detalleNomina.length }}</strong> empleados ·
@@ -23,8 +30,19 @@
             <option value="">Todas las zonas</option>
             <option v-for="z in zonasUnicas" :key="z" :value="z">{{ z }}</option>
           </select>
-          <label class="mn-toggle"><input type="checkbox" v-model="soloNuevos" /> Solo nuevos</label>
-          <label class="mn-toggle"><input type="checkbox" v-model="soloSinMatch" /> Sin match</label>
+
+          <div class="mn-filtros-divider"></div>
+
+          <div class="mn-chips-group">
+            <button type="button" class="chip-check" :class="{ active: soloNuevos }" @click="soloNuevos = !soloNuevos">
+              <span class="chip-check-box"><i class="ti ti-check" v-if="soloNuevos"></i></span>
+              Solo nuevos
+            </button>
+            <button type="button" class="chip-check" :class="{ active: soloSinMatch }" @click="soloSinMatch = !soloSinMatch">
+              <span class="chip-check-box"><i class="ti ti-check" v-if="soloSinMatch"></i></span>
+              Sin match
+            </button>
+          </div>
         </div>
 
         <div class="mn-tabla-wrap">
@@ -188,14 +206,18 @@
           <span class="muted" style="font-size:12px">
             Mostrando {{ detallesFiltrados.length }} de {{ detalleNomina.length }} empleados
           </span>
-          <div style="display:flex; gap:8px;">
-            <button v-if="nomina?.estatus === 'borrador'" class="btn-primary-lg" @click="aprobar" :disabled="aprobando">
-              <i class="ti ti-check"></i> {{ aprobando ? 'Aprobando...' : 'Aprobar nómina' }}
+          <div class="mn-footer-actions">
+            <button v-if="nomina?.estatus === 'borrador'" class="btn-outline-danger" @click="mostrarConfirmarCancelar = true">
+              <i class="ti ti-trash"></i> Cancelar nómina
+            </button>
+            <button v-if="nomina?.estatus === 'borrador'" class="btn-primary-lg" @click="mostrarConfirmarAprobar = true">
+              <i class="ti ti-check"></i> Aprobar nómina
             </button>
             <button v-if="nomina?.estatus === 'aprobada'" class="btn-primary-lg" @click="mostrarDispersion = true">
               <i class="ti ti-cash"></i> Dispersar
             </button>
-            <button class="btn-sm" @click="$emit('cerrar')">Cerrar</button>
+            <button class="btn-ghost" @click="$emit('cerrar')">Cerrar</button>
+
           </div>
         </div>
       </div>
@@ -215,6 +237,50 @@
       </div>
     </div>
   </Teleport>
+
+  <Teleport to="body">
+    <div v-if="mostrarConfirmarAprobar" class="modal-overlay" @click.self="mostrarConfirmarAprobar = false">
+      <div class="confirm-modal confirm-modal--warning">
+        <div class="cm-icon"><i class="ti ti-lock"></i></div>
+        <p class="cm-title">Aprobar "{{ nomina?.nombre }}"</p>
+        <p class="cm-sub">
+          Una vez aprobada, <strong>ya no podrás agregar más cargas ni pre-nóminas</strong> a este lote.
+          Cualquier fatiga adicional tendrá que procesarse como un lote aparte.
+        </p>
+        <div class="cm-actions">
+          <button class="cm-btn cm-btn--ghost" @click="mostrarConfirmarAprobar = false" :disabled="aprobando">Cancelar</button>
+          <button class="cm-btn cm-btn--primary" @click="aprobar" :disabled="aprobando">
+            {{ aprobando ? 'Aprobando...' : 'Sí, aprobar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+  <div v-if="mostrarConfirmarCancelar" class="modal-overlay" @click.self="mostrarConfirmarCancelar = false">
+    <div class="confirm-modal confirm-modal--danger">
+      <div class="cm-icon"><i class="ti ti-trash"></i></div>
+      <p class="cm-title">Cancelar "{{ nomina?.nombre }}"</p>
+      <p class="cm-sub">
+        Se marcará como <strong>rechazada</strong> y desaparecerá del flujo de revisión.
+        Esta acción no se puede deshacer.
+      </p>
+      <textarea
+        v-model="motivoCancelar"
+        placeholder="Motivo de la cancelación (opcional)..."
+        class="cm-textarea"
+        rows="3"
+      ></textarea>
+      <div class="cm-actions">
+        <button class="cm-btn cm-btn--ghost" @click="mostrarConfirmarCancelar = false" :disabled="cancelando">Volver</button>
+        <button class="cm-btn cm-btn--danger" @click="cancelarNomina" :disabled="cancelando">
+          {{ cancelando ? 'Cancelando...' : 'Sí, cancelar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</Teleport>
 </template>
 
 <script setup>
@@ -243,6 +309,9 @@ const zonasUnicas = computed(() =>
   [...new Set(detalleNomina.value.map(d => d.zona).filter(Boolean))].sort()
 )
 
+const mostrarConfirmarAprobar = ref(false)
+
+
 const detallesFiltrados = computed(() => {
   let lista = detalleNomina.value
   if (filtroNombre.value) lista = lista.filter(d => d.nombre_excel?.toLowerCase().includes(filtroNombre.value.toLowerCase()))
@@ -251,6 +320,24 @@ const detallesFiltrados = computed(() => {
   if (soloSinMatch.value) lista = lista.filter(d => !d.id_empleado)
   return lista
 })
+
+const mostrarConfirmarCancelar = ref(false)
+const motivoCancelar = ref('')
+const cancelando = ref(false)
+
+async function cancelarNomina() {
+  cancelando.value = true
+  try {
+    await api.post(`/nomina-fatiga/${props.idNomina}/rechazar`, { comentario: motivoCancelar.value })
+    mostrarConfirmarCancelar.value = false
+    emit('actualizado')
+    emit('cerrar')
+  } catch (err) {
+    console.error('Error cancelando:', err)
+  } finally {
+    cancelando.value = false
+  }
+}
 
 function sumaCol(col) {
   return detallesFiltrados.value.reduce((s, d) => s + (parseFloat(d[col]) || 0), 0)
@@ -273,6 +360,7 @@ async function aprobar() {
   aprobando.value = true
   try {
     await api.post(`/nomina-fatiga/${props.idNomina}/aprobar`)
+    mostrarConfirmarAprobar.value = false
     await cargar()
     emit('actualizado')
   } catch (err) {
@@ -293,35 +381,11 @@ onMounted(cargar)
 </script>
 
 <style scoped>
-.modal-overlay {
-  position:fixed; inset:0; background:rgba(0,0,0,.6);
-  display:flex; align-items:center; justify-content:center;
-  z-index:1000; padding:16px;
-}
-.modal-nomina {
-  background:var(--bg1); border:0.5px solid var(--bdr);
-  border-radius:16px; width:100%; max-width:1200px;
-  max-height:90vh; display:flex; flex-direction:column;
-  overflow:hidden;
-}
-.mn-header {
-  display:flex; align-items:flex-start; justify-content:space-between;
-  padding:18px 20px; border-bottom:0.5px solid var(--bdr); gap:12px;
-}
-.mn-title { font-size:16px; font-weight:600; color:var(--tx0); }
+
+
 .mn-sub   { font-size:12px; color:var(--tx2); margin-top:4px; }
 .mn-sub .grn { color:var(--grn); }
-.mn-close {
-  width:30px; height:30px; border-radius:8px; border:none;
-  background:var(--bg3); color:var(--tx2); cursor:pointer;
-  display:flex; align-items:center; justify-content:center; flex-shrink:0;
-}
-.mn-close:hover { background:var(--red-dim); color:var(--red); }
 
-.mn-filtros {
-  display:flex; align-items:center; gap:10px; padding:12px 20px;
-  border-bottom:0.5px solid var(--bdr); flex-wrap:wrap;
-}
 .mn-search {
   flex:1; min-width:200px; padding:7px 12px; border-radius:8px;
   border:0.5px solid var(--bdr2); background:var(--bg2);
@@ -438,4 +502,114 @@ onMounted(cargar)
 .badge-aprobada   { background: rgba(34,201,122,.15); color: var(--grn); }
 .badge-rechazada  { background: var(--red-dim); color: var(--red); }
 .badge-dispersada { background: var(--acc-dim); color: var(--acc); }
+
+.chip-check {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px 7px 8px; border-radius: 20px;
+  border: 0.5px solid var(--bdr2); background: var(--bg2);
+  color: var(--tx1); font-size: 12px; cursor: pointer;
+  font-family: inherit; white-space: nowrap; transition: all .15s;
+}
+.chip-check:hover { border-color: var(--acc); }
+.chip-check.active { background: var(--acc-dim); border-color: var(--acc); color: var(--acc); }
+.chip-check-box {
+  width: 16px; height: 16px; border-radius: 5px;
+  border: 1.5px solid var(--bdr2); background: var(--bg1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; flex-shrink: 0; transition: all .15s;
+}
+.chip-check.active .chip-check-box {
+  background: var(--acc); border-color: var(--acc); color: #fff;
+}
+
+.btn-outline-danger {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 8px;
+  border: 1px solid var(--red); background: transparent;
+  color: var(--red); font-size: 13px; font-weight: 500;
+  cursor: pointer; font-family: inherit; transition: all .15s;
+}
+.btn-outline-danger:hover { background: var(--red-dim); }
+
+.mn-filtros {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 0.5px solid var(--bdr);
+  flex-wrap: wrap;
+}
+
+.mn-filtros-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--bdr2);
+  margin: 0 4px;
+}
+
+.mn-chips-group {
+  display: flex;
+  gap: 8px;
+}
+
+.chip-check {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 14px 7px 9px; border-radius: 20px;
+  border: 1px solid var(--bdr2); background: var(--bg2);
+  color: var(--tx1); font-size: 12px; cursor: pointer;
+  font-family: inherit; white-space: nowrap; transition: all .15s;
+}
+.chip-check:hover { border-color: var(--acc); color: var(--tx0); }
+.chip-check.active { background: var(--acc-dim); border-color: var(--acc); color: var(--acc); font-weight: 500; }
+.chip-check-box {
+  width: 16px; height: 16px; border-radius: 5px;
+  border: 1.5px solid var(--bdr2); background: var(--bg1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; flex-shrink: 0; transition: all .15s;
+}
+.chip-check.active .chip-check-box {
+  background: var(--acc); border-color: var(--acc); color: #fff;
+}
+
+.mn-footer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 0.5px solid var(--bdr);
+  background: var(--bg2);
+}
+
+.mn-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-outline-danger {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px; border-radius: 9px;
+  border: 1px solid var(--red); background: transparent;
+  color: var(--red); font-size: 13px; font-weight: 500;
+  cursor: pointer; font-family: inherit; transition: all .15s;
+}
+.btn-outline-danger:hover { background: var(--red-dim); }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px; border-radius: 9px;
+  border: 1px solid var(--bdr2); background: var(--bg1);
+  color: var(--tx1); font-size: 13px; font-weight: 500;
+  cursor: pointer; font-family: inherit; transition: all .15s;
+}
+.btn-ghost:hover { background: var(--bg3); color: var(--tx0); }
+
+.btn-primary-lg {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 18px; border-radius: 9px; border: none;
+  background: var(--acc); font-size: 13px; color: #fff;
+  cursor: pointer; font-family: inherit; font-weight: 500;
+  transition: background .15s;
+}
+
 </style>
