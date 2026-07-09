@@ -63,28 +63,29 @@
           <table v-if="tabActiva === 'prenomina'" class="mn-tabla">
             <thead>
               <tr>
-                <th class="th-grupo th-perc" colspan="6">PERCEPCIONES</th>
+                <th class="th-grupo th-perc" colspan="7">PERCEPCIONES</th>
                 <th class="th-grupo th-ded"  colspan="5">DEDUCCIONES</th>
                 <th class="th-grupo th-tot"  colspan="2">TOTALES</th>
               </tr>
               <tr>
                 <th class="text-left">Empleado</th>
                 <th class="text-left">Zona</th>
-                <th>★</th>
-                <th>Sueldo</th>
-                <th>Extra</th>
-                <th>Fest/Dob</th>
-                <th>Faltas</th>
-                <th>FONACOT</th>
-                <th>INFONAVIT</th>
-                <th>Pensión</th>
-                <th>Otros</th>
-                <th class="col-total">Neto pagar</th>
-                <th>Bono</th>
+                <th title="Nuevo ingreso este periodo">★</th>
+                <th title="Sueldo base quincenal">Sueldo</th>
+                <th title="Tiempo extra (24E/12E)">Extra</th>
+                <th title="Monto adicional capturado en el Excel">Adicional</th>
+                <th title="Festivos trabajados + Dobletes">Fest/Dob</th>
+                <th title="Descuento por faltas">Faltas</th>
+                <th title="FONACOT">FONACOT</th>
+                <th title="INFONAVIT">INFONAVIT</th>
+                <th title="Pensión alimenticia">Pensión</th>
+                <th title="Otros descuentos">Otros</th>
+                <th title="Total neto a pagar (pre-nómina)" class="col-total">Neto pagar</th>
+                <th title="Bono del tabulador">Bono</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="detallesFiltrados.length === 0"><td colspan="13" class="sin-resultados">Sin resultados</td></tr>
+              <tr v-if="detallesFiltrados.length === 0"><td colspan="14" class="sin-resultados">Sin resultados</td></tr>
               <tr v-for="d in detallesFiltrados" :key="d.id"
                 :class="{ 'row-nuevo': d.es_nuevo==1, 'row-sin-match': !d.id_empleado }">
                 <td class="col-nombre">
@@ -99,6 +100,7 @@
                 </td>
                 <td class="mono">{{ fmt(d.sueldo_semanal) }}</td>
                 <td class="mono grn">{{ d.tiempo_extra > 0 ? '+'+fmt(d.tiempo_extra) : '—' }}</td>
+                <td class="mono grn">{{ d.adicional > 0 ? '+'+fmt(d.adicional) : '—' }}</td>
                 <td class="mono grn">
                   <span v-if="d.monto_festivos > 0 || d.monto_dobletes > 0">
                     +{{ fmt((+d.monto_festivos||0) + (+d.monto_dobletes||0)) }}
@@ -119,6 +121,7 @@
                 <td colspan="3"><strong>TOTALES</strong></td>
                 <td class="mono">{{ fmt(sumaCol('sueldo_semanal')) }}</td>
                 <td class="mono grn">+{{ fmt(sumaCol('tiempo_extra')) }}</td>
+                <td class="mono grn">+{{ fmt(sumaCol('adicional')) }}</td>
                 <td class="mono grn">+{{ fmt(sumaCol('monto_festivos') + sumaCol('monto_dobletes')) }}</td>
                 <td class="mono red">-{{ fmt(sumaCol('descuento_faltas')) }}</td>
                 <td class="mono red">-{{ fmt(sumaCol('desc_fonacot')) }}</td>
@@ -210,6 +213,11 @@
             <button v-if="nomina?.estatus === 'borrador'" class="btn-outline-danger" @click="mostrarConfirmarCancelar = true">
               <i class="ti ti-trash"></i> Cancelar nómina
             </button>
+            <button class="btn-ghost" @click="exportarExcel" :disabled="exportando">
+              <i class="ti ti-loader-2 spin" v-if="exportando"></i>
+              <i class="ti ti-file-spreadsheet" v-else></i>
+              {{ exportando ? 'Generando...' : 'Exportar Excel' }}
+            </button>
             <button v-if="nomina?.estatus === 'borrador'" class="btn-primary-lg" @click="mostrarConfirmarAprobar = true">
               <i class="ti ti-check"></i> Aprobar nómina
             </button>
@@ -217,7 +225,6 @@
               <i class="ti ti-cash"></i> Dispersar
             </button>
             <button class="btn-ghost" @click="$emit('cerrar')">Cerrar</button>
-
           </div>
         </div>
       </div>
@@ -325,6 +332,33 @@ const mostrarConfirmarCancelar = ref(false)
 const motivoCancelar = ref('')
 const cancelando = ref(false)
 
+const exportando = ref(false)
+
+async function exportarExcel() {
+  exportando.value = true
+  try {
+    const response = await api.get(`/nomina-fatiga/${props.idNomina}/exportar-xlsx`, {
+      responseType: 'blob',
+    })
+    const disposition = response.headers['content-disposition'] || ''
+    const match = disposition.match(/filename="(.+)"/)
+    const nombreArchivo = match ? match[1] : `nomina_${props.idNomina}.xlsx`
+
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', nombreArchivo)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Error exportando:', err)
+  } finally {
+    exportando.value = false
+  }
+}
+
 async function cancelarNomina() {
   cancelando.value = true
   try {
@@ -381,10 +415,29 @@ onMounted(cargar)
 </script>
 
 <style scoped>
-
-
 .mn-sub   { font-size:12px; color:var(--tx2); margin-top:4px; }
 .mn-sub .grn { color:var(--grn); }
+
+.mn-filtros {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 0.5px solid var(--bdr);
+  flex-wrap: wrap;
+}
+
+.mn-filtros-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--bdr2);
+  margin: 0 4px;
+}
+
+.mn-chips-group {
+  display: flex;
+  gap: 8px;
+}
 
 .mn-search {
   flex:1; min-width:200px; padding:7px 12px; border-radius:8px;
@@ -490,8 +543,18 @@ onMounted(cargar)
 }
 
 .mn-footer-bar {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:12px 20px; border-top:0.5px solid var(--bdr);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 0.5px solid var(--bdr);
+  background: var(--bg2);
+}
+
+.mn-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .badge-estatus {
@@ -502,55 +565,6 @@ onMounted(cargar)
 .badge-aprobada   { background: rgba(34,201,122,.15); color: var(--grn); }
 .badge-rechazada  { background: var(--red-dim); color: var(--red); }
 .badge-dispersada { background: var(--acc-dim); color: var(--acc); }
-
-.chip-check {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 12px 7px 8px; border-radius: 20px;
-  border: 0.5px solid var(--bdr2); background: var(--bg2);
-  color: var(--tx1); font-size: 12px; cursor: pointer;
-  font-family: inherit; white-space: nowrap; transition: all .15s;
-}
-.chip-check:hover { border-color: var(--acc); }
-.chip-check.active { background: var(--acc-dim); border-color: var(--acc); color: var(--acc); }
-.chip-check-box {
-  width: 16px; height: 16px; border-radius: 5px;
-  border: 1.5px solid var(--bdr2); background: var(--bg1);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10px; flex-shrink: 0; transition: all .15s;
-}
-.chip-check.active .chip-check-box {
-  background: var(--acc); border-color: var(--acc); color: #fff;
-}
-
-.btn-outline-danger {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 16px; border-radius: 8px;
-  border: 1px solid var(--red); background: transparent;
-  color: var(--red); font-size: 13px; font-weight: 500;
-  cursor: pointer; font-family: inherit; transition: all .15s;
-}
-.btn-outline-danger:hover { background: var(--red-dim); }
-
-.mn-filtros {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 20px;
-  border-bottom: 0.5px solid var(--bdr);
-  flex-wrap: wrap;
-}
-
-.mn-filtros-divider {
-  width: 1px;
-  height: 22px;
-  background: var(--bdr2);
-  margin: 0 4px;
-}
-
-.mn-chips-group {
-  display: flex;
-  gap: 8px;
-}
 
 .chip-check {
   display: inline-flex; align-items: center; gap: 7px;
@@ -569,21 +583,6 @@ onMounted(cargar)
 }
 .chip-check.active .chip-check-box {
   background: var(--acc); border-color: var(--acc); color: #fff;
-}
-
-.mn-footer-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 20px;
-  border-top: 0.5px solid var(--bdr);
-  background: var(--bg2);
-}
-
-.mn-footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .btn-outline-danger {
@@ -611,5 +610,6 @@ onMounted(cargar)
   cursor: pointer; font-family: inherit; font-weight: 500;
   transition: background .15s;
 }
-
+.btn-primary-lg:hover:not(:disabled) { background: var(--acc2); }
+.btn-primary-lg:disabled { opacity: .6; cursor: not-allowed; }
 </style>

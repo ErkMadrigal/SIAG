@@ -107,6 +107,24 @@
       <div class="sec-hdr"><i class="ti ti-briefcase"></i> Datos laborales</div>
       <div class="sec-body">
         <div class="field-grid">
+          
+          <div class="field field-full">
+            <label>Modo de sueldo</label>
+            <div class="modo-sueldo-toggle">
+              <button type="button" :class="{ active: trabajo.modo_sueldo === 'tabulador' }" @click="trabajo.modo_sueldo = 'tabulador'">
+                <i class="ti ti-table"></i> Por tabulador (puesto/zona)
+              </button>
+              <button type="button" :class="{ active: trabajo.modo_sueldo === 'salario' }" @click="trabajo.modo_sueldo = 'salario'">
+                <i class="ti ti-coin"></i> Sueldo fijo mensual
+              </button>
+            </div>
+          </div>
+          <div class="field" v-if="trabajo.modo_sueldo === 'salario'">
+            <label>Salario mensual</label>
+            <input type="number" v-model.number="trabajo.salario_mensual" step="0.01" placeholder="0.00" />
+          </div>
+
+
           <div class="field"><label>Turno</label>
             <select v-model="trabajo.turno" :disabled="loadingCats">
               <option value="">Seleccione</option>
@@ -276,9 +294,6 @@ const personal = reactive({
   nombreEmergencia: '', telefonoEmergencia: '', parentesco: ''
 })
 
-const trabajo = reactive({
-  turno: '', puesto: '', periodicidad: '', fecha_efectiva: ''
-})
 
 const banco = reactive({
   interbancaria: '', institucionBancaria: '', bancoId: ''
@@ -296,6 +311,11 @@ const initials = computed(() => {
 })
 const avatarBg    = computed(() => AVATAR_COLORS[empleado.value?.id % AVATAR_COLORS.length]?.bg    || '#1a2d4d')
 const avatarColor = computed(() => AVATAR_COLORS[empleado.value?.id % AVATAR_COLORS.length]?.color || '#4f8ef7')
+
+const trabajo = reactive({
+  turno: '', puesto: '', periodicidad: '', fecha_efectiva: '',
+  modo_sueldo: 'tabulador', salario_mensual: null
+})
 
 onMounted(async () => {
   await Promise.all([fetchEmpleado(), loadCatalogos()])
@@ -332,6 +352,8 @@ async function fetchEmpleado() {
     trabajo.puesto        = data.id_puesto     || ''
     trabajo.periodicidad  = data.id_periocidad || ''
     trabajo.fecha_efectiva = data.fecha_efectiva || ''
+    trabajo.modo_sueldo     = data.modo_sueldo     || 'tabulador'
+    trabajo.salario_mensual = data.salario_mensual || null
 
     banco.interbancaria      = data.clave_interbancaria || ''
     banco.institucionBancaria = data.institucionBancaria || ''
@@ -413,11 +435,13 @@ async function guardarTrabajo() {
   saving.value = true
   try {
     await empleadosService.update(route.params.id, {
-      tipo:           'trabajo',
-      id_turno:       trabajo.turno,
-      id_puesto:      trabajo.puesto,
-      id_periocidad:  trabajo.periodicidad,
-      fecha:          trabajo.fecha_efectiva,
+      tipo:            'trabajo',
+      id_turno:        trabajo.turno,
+      id_puesto:       trabajo.puesto,
+      id_periocidad:   trabajo.periodicidad,
+      fecha:           trabajo.fecha_efectiva,
+      modo_sueldo:     trabajo.modo_sueldo,
+      salario_mensual: trabajo.modo_sueldo === 'salario' ? trabajo.salario_mensual : null,
     })
     showSuccess('Datos laborales actualizados correctamente')
   } catch (err) {
@@ -679,5 +703,19 @@ select option { background: var(--bg1); }
   .perfil-header { flex-direction: column; align-items: center; text-align: center; }
   .perfil-badges { justify-content: center; }
   .tabs-bar { overflow-x: auto; }
+}
+
+.modo-sueldo-toggle {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.modo-sueldo-toggle button {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px; border-radius: 8px;
+  border: 0.5px solid var(--bdr2); background: var(--bg2);
+  color: var(--tx1); font-size: 13px; cursor: pointer;
+  font-family: inherit; transition: all .15s;
+}
+.modo-sueldo-toggle button.active {
+  background: var(--acc-dim); border-color: var(--acc); color: var(--acc); font-weight: 500;
 }
 </style>

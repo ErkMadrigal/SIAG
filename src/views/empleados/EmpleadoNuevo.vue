@@ -152,6 +152,20 @@
           <span>Datos laborales</span>
         </div>
         <div class="sec-body">
+
+          <!-- Modo de sueldo — arriba de todo -->
+          <div class="field field-full" style="margin-bottom: 16px;">
+            <label>Modo de sueldo <span class="req">*</span></label>
+            <div class="modo-sueldo-toggle">
+              <button type="button" :class="{ active: form.modo_sueldo === 'tabulador' }" @click="form.modo_sueldo = 'tabulador'">
+                <i class="ti ti-table"></i> Por tabulador (puesto/zona)
+              </button>
+              <button type="button" :class="{ active: form.modo_sueldo === 'salario' }" @click="form.modo_sueldo = 'salario'">
+                <i class="ti ti-coin"></i> Sueldo fijo mensual
+              </button>
+            </div>
+          </div>
+
           <div class="field-grid">
             <div class="field">
               <label>Turno <span class="req">*</span></label>
@@ -182,7 +196,13 @@
               <input type="date" v-model="form.fecha_efectiva" :class="{ error: errors.fecha_efectiva }" />
               <span v-if="errors.fecha_efectiva" class="err-msg">{{ errors.fecha_efectiva }}</span>
             </div>
+            <div class="field field-full" v-if="form.modo_sueldo === 'salario'">
+              <label>Salario mensual <span class="req">*</span></label>
+              <input type="number" v-model.number="form.salario_mensual" :class="{ error: errors.salario_mensual }" step="0.01" placeholder="0.00" />
+              <span v-if="errors.salario_mensual" class="err-msg">{{ errors.salario_mensual }}</span>
+            </div>
           </div>
+
         </div>
       </div>
 
@@ -280,6 +300,7 @@ const form = reactive({
   nombreEmergencia: '', telefonoEmergencia: '', parentesco: '',
   turno: '', puesto: '', periodicidad: '', fecha_efectiva: '',
   interbancaria: '', institucionBancaria: '', banco: '',
+  modo_sueldo: 'tabulador', salario_mensual: '',
 })
 
 const errors = reactive({})
@@ -436,6 +457,11 @@ function validate() {
   required.forEach(([field, msg]) => {
     if (!form[field]) { errors[field] = msg; ok = false }
   })
+
+  if (form.modo_sueldo === 'salario' && !form.salario_mensual) {
+  errors.salario_mensual = 'El salario mensual es requerido'
+  ok = false
+}
 
   const digits = form.interbancaria.replace(/\D/g, '')
   if (digits && digits.length !== 18) {
@@ -605,5 +631,40 @@ select option { background: var(--bg1); }
 @media (max-width: 768px) {
   .field-grid { grid-template-columns: 1fr; }
   .foto-wrap { flex-direction: column; align-items: center; }
+}
+
+.modo-sueldo-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+.modo-sueldo-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--bdr2);
+  background: var(--bg2);
+  color: var(--tx1);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .18s;
+}
+.modo-sueldo-toggle button:hover {
+  border-color: var(--acc);
+  background: var(--acc-dim);
+}
+.modo-sueldo-toggle button.active {
+  background: var(--acc-dim);
+  border-color: var(--acc);
+  color: var(--acc);
+  font-weight: 500;
+}
+.modo-sueldo-toggle button i {
+  font-size: 16px;
 }
 </style>
