@@ -400,7 +400,7 @@
           <table v-if="tabActiva === 'prenomina'" class="mn-tabla">
             <thead>
               <tr>
-                <th class="th-grupo th-perc" colspan="7">PERCEPCIONES</th>
+                <th class="th-grupo th-perc" colspan="8">PERCEPCIONES</th>
                 <th class="th-grupo th-ded"  colspan="5">DEDUCCIONES</th>
                 <th class="th-grupo th-tot"  colspan="2">TOTALES</th>
               </tr>
@@ -419,6 +419,8 @@
                 <th title="Otros descuentos">Otros</th>
                 <th title="Total neto a pagar (pre-nómina)" class="col-total">Neto pagar</th>
                 <th title="Bono del tabulador">Bono</th>
+                <th title="Comentarios del Excel">Comentarios</th>
+
               </tr>
             </thead>
             <tbody>
@@ -458,6 +460,9 @@
                 <td class="mono red">{{ d.otros_descuentos > 0 ? '-'+fmt(d.otros_descuentos) : '—' }}</td>
                 <td class="mono col-total" :class="d.total > 0 ? 'grn' : 'red'">{{ fmt(d.total) }}</td>
                 <td class="mono grn" style="font-size:11px">{{ d.bono > 0 ? '+'+fmt(d.bono) : '—' }}</td>
+                <td class="col-comentarios" style="text-align:left; font-size:11px; color:var(--tx2); max-width:200px;">
+                  {{ d.comentarios || '—' }}
+                </td>
               </tr>
             </tbody>
             <tfoot>
@@ -474,6 +479,8 @@
                 <td class="mono red">-{{ fmt(sumaCol('otros_descuentos')) }}</td>
                 <td class="mono grn col-total">{{ fmt(sumaCol('total')) }}</td>
                 <td class="mono grn">+{{ fmt(sumaCol('bono')) }}</td>
+                <td></td>
+
               </tr>
             </tfoot>
           </table>
