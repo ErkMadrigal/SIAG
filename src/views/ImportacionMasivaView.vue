@@ -12,146 +12,172 @@
       </div>
     </div>
 
-    <!-- Drop zone -->
-    <div class="sec">
-      <div
-        class="dropzone"
-        :class="{ 'drag-over': dragOver, 'has-file': archivo, 'has-error': errores.length > 0, 'has-success': archivo && errores.length === 0 && validado }"
-        @dragover.prevent="dragOver = true"
-        @dragleave="dragOver = false"
-        @drop.prevent="onDrop"
-        @click="fileInputRef?.click()"
-      >
-        <template v-if="!archivo">
-          <div class="dz-icon">
-            <i class="ti ti-cloud-upload" aria-hidden="true"></i>
-          </div>
-          <p class="dz-title">Suelta el archivo aquí o haz clic para cargarlo</p>
-          <p class="dz-hint">Acepta archivos .xlsx · .xls</p>
-        </template>
-        <template v-else>
-          <div class="file-info">
-            <div class="file-icon">
-              <i class="ti ti-file-spreadsheet" aria-hidden="true"></i>
+    <!-- ═══ Candado de clave ═══ -->
+    <div v-if="!desbloqueado" class="sec candado-sec">
+      <div class="dz-icon" style="margin: 32px auto 12px;">
+        <i class="ti ti-lock" aria-hidden="true"></i>
+      </div>
+      <p class="dz-title" style="text-align:center">Esta carga masiva requiere clave de acceso</p>
+      <p class="dz-hint" style="text-align:center; margin-bottom:16px;">
+        Ingresa la clave de importación para continuar.
+      </p>
+      <div style="max-width:320px; margin:0 auto; padding-bottom:32px;">
+        <input
+          v-model="claveIngresada"
+          type="password"
+          placeholder="Clave de acceso"
+          class="input-clave"
+          @keyup.enter="verificarClave"
+        />
+        <button class="btn-primary-lg" style="width:100%; justify-content:center; margin-top:10px;" @click="verificarClave" :disabled="!claveIngresada">
+          Desbloquear
+        </button>
+        <p v-if="errorClave" style="color:var(--red); font-size:12px; margin-top:8px; text-align:center;">{{ errorClave }}</p>
+      </div>
+    </div>
+
+    <template v-else>
+      <!-- Drop zone -->
+      <div class="sec">
+        <div
+          class="dropzone"
+          :class="{ 'drag-over': dragOver, 'has-file': archivo, 'has-error': errores.length > 0, 'has-success': archivo && errores.length === 0 && validado }"
+          @dragover.prevent="dragOver = true"
+          @dragleave="dragOver = false"
+          @drop.prevent="onDrop"
+          @click="fileInputRef?.click()"
+        >
+          <template v-if="!archivo">
+            <div class="dz-icon">
+              <i class="ti ti-cloud-upload" aria-hidden="true"></i>
             </div>
-            <div>
-              <p class="file-name">{{ archivo.name }}</p>
-              <p class="file-size">{{ formatSize(archivo.size) }} · {{ filas.length }} filas detectadas</p>
+            <p class="dz-title">Suelta el archivo aquí o haz clic para cargarlo</p>
+            <p class="dz-hint">Acepta archivos .xlsx · .xls</p>
+          </template>
+          <template v-else>
+            <div class="file-info">
+              <div class="file-icon">
+                <i class="ti ti-file-spreadsheet" aria-hidden="true"></i>
+              </div>
+              <div>
+                <p class="file-name">{{ archivo.name }}</p>
+                <p class="file-size">{{ formatSize(archivo.size) }} · {{ filas.length }} filas detectadas</p>
+              </div>
+              <button class="file-remove" @click.stop="resetTodo">
+                <i class="ti ti-x"></i>
+              </button>
             </div>
-            <button class="file-remove" @click.stop="resetTodo">
-              <i class="ti ti-x"></i>
-            </button>
-          </div>
-        </template>
+          </template>
+        </div>
+        <input ref="fileInputRef" type="file" accept=".xlsx,.xls,.xlsm" style="display:none" @change="onFileChange" />
       </div>
-      <input ref="fileInputRef" type="file" accept=".xlsx,.xls,.xlsm" style="display:none" @change="onFileChange" />
-    </div>
 
-    <!-- Banner éxito validación -->
-    <div v-if="archivo && validado && errores.length === 0" class="banner-success">
-      <i class="ti ti-circle-check" aria-hidden="true"></i>
-      <div>
-        <p style="font-weight:500">Plantilla válida — {{ filas.length }} registros listos para procesar</p>
-        <p style="font-size:11px;opacity:.8">Sin errores detectados. Puedes enviar o solo validar contra el servidor.</p>
+      <!-- Banner éxito validación -->
+      <div v-if="archivo && validado && errores.length === 0" class="banner-success">
+        <i class="ti ti-circle-check" aria-hidden="true"></i>
+        <div>
+          <p style="font-weight:500">Plantilla válida — {{ filas.length }} registros listos para procesar</p>
+          <p style="font-size:11px;opacity:.8">Sin errores detectados. Puedes enviar o solo validar contra el servidor.</p>
+        </div>
       </div>
-    </div>
 
-    <!-- Progreso upload -->
-    <div v-if="uploading" class="progreso-wrap">
-      <div class="progreso-info">
-        <i class="ti ti-loader-2 spin" aria-hidden="true"></i>
-        <span>{{ progresoTexto }}</span>
-        <span class="progreso-pct">{{ progresoPct }}%</span>
+      <!-- Progreso upload -->
+      <div v-if="uploading" class="progreso-wrap">
+        <div class="progreso-info">
+          <i class="ti ti-loader-2 spin" aria-hidden="true"></i>
+          <span>{{ progresoTexto }}</span>
+          <span class="progreso-pct">{{ progresoPct }}%</span>
+        </div>
+        <div class="progreso-bar">
+          <div class="progreso-fill" :style="{ width: progresoPct + '%' }"></div>
+        </div>
       </div>
-      <div class="progreso-bar">
-        <div class="progreso-fill" :style="{ width: progresoPct + '%' }"></div>
-      </div>
-    </div>
 
-    <!-- Acciones -->
-    <div v-if="archivo" class="acciones">
-      <button class="btn-sm" @click="resetTodo" :disabled="uploading">
-        <i class="ti ti-eraser" aria-hidden="true"></i> Resetear
-      </button>
-      <button class="btn-sm" :disabled="!validado || errores.length > 0 || uploading" @click="enviar(true)">
-        <i class="ti ti-check" aria-hidden="true"></i> Solo validar
-      </button>
-      <button class="btn-primary-lg" :disabled="!validado || errores.length > 0 || uploading" @click="enviar(false)">
-        <i class="ti ti-loader-2 spin" v-if="uploading" aria-hidden="true"></i>
-        <i class="ti ti-send" v-else aria-hidden="true"></i>
-        {{ uploading ? progresoTexto : 'Enviar' }}
-      </button>
-    </div>
-
-    <!-- Tabla de errores -->
-    <div v-if="errores.length > 0" class="sec">
-      <div class="sec-hdr error">
-        <i class="ti ti-alert-triangle" aria-hidden="true"></i>
-        <span>La plantilla tiene errores</span>
-        <span class="error-count">{{ errores.length }} errores</span>
-        <button class="btn-sm" style="margin-left:auto" @click="exportarErrores">
-          <i class="ti ti-download" aria-hidden="true"></i> Exportar errores
+      <!-- Acciones -->
+      <div v-if="archivo" class="acciones">
+        <button class="btn-sm" @click="resetTodo" :disabled="uploading">
+          <i class="ti ti-eraser" aria-hidden="true"></i> Resetear
+        </button>
+        <button v-if="tipo !== 'nuevos_directo'" class="btn-sm" :disabled="!validado || errores.length > 0 || uploading" @click="enviar(true)">
+          <i class="ti ti-check" aria-hidden="true"></i> Solo validar
+        </button>
+        <button class="btn-primary-lg" :disabled="!validado || errores.length > 0 || uploading" @click="enviar(false)">
+          <i class="ti ti-loader-2 spin" v-if="uploading" aria-hidden="true"></i>
+          <i class="ti ti-send" v-else aria-hidden="true"></i>
+          {{ uploading ? progresoTexto : 'Enviar' }}
         </button>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:80px">Fila</th>
-              <th>Error detectado</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(e, i) in errores" :key="i">
-              <td class="mono" style="color:var(--red)">{{ e.fila }}</td>
-              <td style="color:var(--tx1)">{{ e.mensaje }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
 
-    <!-- Resultado del servidor -->
-    <div v-if="resultado" class="sec">
-      <div class="sec-hdr" :class="resultado.ok ? 'success' : 'error'">
-        <i :class="['ti', resultado.ok ? 'ti-circle-check' : 'ti-alert-triangle']" aria-hidden="true"></i>
-        <span>{{ resultado.validateOnly ? 'Resultado de validación' : 'Resultado de carga masiva' }}</span>
+      <!-- Tabla de errores -->
+      <div v-if="errores.length > 0" class="sec">
+        <div class="sec-hdr error">
+          <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+          <span>La plantilla tiene errores</span>
+          <span class="error-count">{{ errores.length }} errores</span>
+          <button class="btn-sm" style="margin-left:auto" @click="exportarErrores">
+            <i class="ti ti-download" aria-hidden="true"></i> Exportar errores
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:80px">Fila</th>
+                <th>Error detectado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(e, i) in errores" :key="i">
+                <td class="mono" style="color:var(--red)">{{ e.fila }}</td>
+                <td style="color:var(--tx1)">{{ e.mensaje }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="resultado-stats">
-        <div class="rstat blue">
-          <span class="rstat-num">{{ resultado.total }}</span>
-          <span>Total</span>
+
+      <!-- Resultado del servidor -->
+      <div v-if="resultado" class="sec">
+        <div class="sec-hdr" :class="resultado.ok ? 'success' : 'error'">
+          <i :class="['ti', resultado.ok ? 'ti-circle-check' : 'ti-alert-triangle']" aria-hidden="true"></i>
+          <span>{{ resultado.validateOnly ? 'Resultado de validación' : 'Resultado de carga masiva' }}</span>
         </div>
-        <div class="rstat green">
-          <span class="rstat-num">{{ resultado.insertados }}</span>
-          <span>Insertados</span>
+        <div class="resultado-stats">
+          <div class="rstat blue">
+            <span class="rstat-num">{{ resultado.total }}</span>
+            <span>Total</span>
+          </div>
+          <div class="rstat green">
+            <span class="rstat-num">{{ resultado.insertados }}</span>
+            <span>Insertados</span>
+          </div>
+          <div class="rstat amber">
+            <span class="rstat-num">{{ resultado.duplicados }}</span>
+            <span>Duplicados</span>
+          </div>
+          <div class="rstat red">
+            <span class="rstat-num">{{ resultado.errores }}</span>
+            <span>Errores</span>
+          </div>
         </div>
-        <div class="rstat amber">
-          <span class="rstat-num">{{ resultado.duplicados }}</span>
-          <span>Duplicados</span>
-        </div>
-        <div class="rstat red">
-          <span class="rstat-num">{{ resultado.errores }}</span>
-          <span>Errores</span>
+        <div v-if="resultado.erroresDetalle?.length" class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:80px">Fila</th>
+                <th>Error del servidor</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(e, i) in resultado.erroresDetalle" :key="i">
+                <td class="mono" style="color:var(--red)">{{ e.fila }}</td>
+                <td style="color:var(--tx1)">{{ e.mensaje }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
-      <div v-if="resultado.erroresDetalle?.length" class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:80px">Fila</th>
-              <th>Error del servidor</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(e, i) in resultado.erroresDetalle" :key="i">
-              <td class="mono" style="color:var(--red)">{{ e.fila }}</td>
-              <td style="color:var(--tx1)">{{ e.mensaje }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    </template>
 
   </div>
 </template>
@@ -202,10 +228,37 @@ const CONFIGS = {
     endpoint:    '/empleados/baja-masiva',
     action:      'empleado_baja_masiva',
   },
+  ubicaciones: {
+    titulo:      'Ubicaciones / Servicios',
+    descripcion: 'Carga masiva de servicios y ubicaciones desde archivo Excel predefinido',
+    endpoint:    '/catalogos/servicios/masivo',
+    action:      'servicio_masivo',
+  },
+  nuevos_directo: {
+    titulo:      'Carga directa (sin validar)',
+    descripcion: '⚠️ Inserta los datos tal cual vienen, sin ninguna validación. Úsalo solo si estás 100% seguro del origen de los datos.',
+    endpoint:    '/empleados/masivo-directo',
+    action:      'empleado_masivo_directo',
+  },
 }
+
+
 
 const tipo   = computed(() => route.query.tipo || 'nuevos')
 const config = computed(() => CONFIGS[tipo.value] || CONFIGS.nuevos)
+
+// ── Candado ──────────────────────────────────────────
+const desbloqueado   = ref(false)
+const claveIngresada = ref('')
+const claveGuardada  = ref('')
+const errorClave     = ref('')
+
+function verificarClave() {
+  if (!claveIngresada.value) return
+  claveGuardada.value = claveIngresada.value
+  desbloqueado.value = true
+  errorClave.value = ''
+}
 
 onMounted(() => {
   ui.setBreadcrumbs([
@@ -226,6 +279,35 @@ function onFileChange(e) {
   const file = e.target.files?.[0]
   if (file) procesarArchivo(file)
   e.target.value = ''
+}
+
+function mapearSinValidar(rows) {
+  datosValidados = rows.map((fila, i) => ({
+    _row:                i + 3,
+    nombre:               normalizarTexto(fila.Nombre),
+    paterno:              normalizarTexto(fila.Paterno),
+    materno:              normalizarTexto(fila.Materno),
+    curp:                 normalizarTexto(fila.CURP),
+    rfc:                  normalizarTexto(fila.RFC),
+    nss:                  safe(fila.NSS).replace(/\D/g, ''),           // solo dígitos, no aplica mayúsculas a números
+    cp:                   safe(fila.CP_Fiscal).replace(/\D/g, ''),
+    fecha_ingreso:        toISODate(fila.Fecha_Alta) || '',
+    interbancaria:        safe(fila.Clabe_Interbancaria).replace(/\D/g, ''),
+    alergias:             normalizarTexto(fila.Alergia) || 'N/A',
+    turno:                safe(fila.id_turno || fila.Turno),
+    puesto:               safe(fila.id_puesto || fila.Puesto),
+    periodicidad:         safe(fila.id_periodicidad || fila.Periodicidad),
+    escolaridad:          safe(fila.id_escolaridad || fila.Escolaridad),
+    tipoSangre:            safe(fila.id_tiposangre  || fila.Tipo_sangre),
+    parentesco:            safe(fila.id_parentesco  || fila.Parentesco),
+    nombreEmergencia:      normalizarTexto(fila.Nombre_Emergencia),
+    telefonoEmergencia:    safe(fila.Telefono_Emergencia).replace(/\D/g, ''),
+  }))
+
+  // Sin errores nunca -- se habilita el botón de enviar directo
+  errores.value  = []
+  erroresUltimos = []
+  validado.value = true
 }
 
 // ── Procesar Excel ───────────────────────────────────
@@ -252,9 +334,48 @@ function procesarArchivo(file) {
     }
 
     filas.value = rows
-    validarFrontend(rows)
+
+    if (tipo.value === 'ubicaciones') {
+      validarServiciosFrontend(rows)
+    } else if (tipo.value === 'nuevos_directo') {
+      mapearSinValidar(rows)
+    } else {
+      validarFrontend(rows)
+    }
   }
   reader.readAsArrayBuffer(file)
+}
+
+// ── ÚNICA definición de xhrConProgreso (ya con el header de clave) ──
+function xhrConProgreso(url, body, token, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', url, true)
+    xhr.setRequestHeader('Content-Type', 'application/json')
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    xhr.setRequestHeader('X-Import-Key', claveGuardada.value)
+
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return
+      onProgress(Math.round((e.loaded / e.total) * 100))
+    }
+
+    xhr.onerror = () => reject(new Error('Error de red'))
+    xhr.onload  = () => {
+      let json = {}
+      try { json = JSON.parse(xhr.responseText || '{}') } catch {}
+      if (xhr.status === 403) {
+        reject(new Error('CLAVE_INCORRECTA'))
+        return
+      }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(json?.message || json?.mensaje || `HTTP ${xhr.status}`))
+        return
+      }
+      resolve(json)
+    }
+    xhr.send(body)
+  })
 }
 
 function validarFirma(workbook) {
@@ -365,83 +486,175 @@ function validarFrontend(rows) {
   validado.value   = true
 }
 
-// ── Envío al servidor ────────────────────────────────
+// ── Validación frontend para servicios/ubicaciones ──────
+function validarServiciosFrontend(rows) {
+  const errs = []
+  datosValidados = []
+  const seenServicioZona = new Set()
+
+  rows.forEach((fila, i) => {
+    const n = i + 3
+
+    const servicio  = normalizarTexto(fila.servicio)
+    const ubicacion = normalizarTexto(fila.ubicacion || fila['Ubicación'] || '')
+    const elementos = safe(fila.elementos).replace(/\D/g, '')
+    const cp        = safe(fila.cp).replace(/\D/g, '')
+    const idCliente = safe(fila.id_cliente)
+    const idEmpresa = safe(fila.id_empresa)
+    const idPartida = safe(fila.id_partida)
+    const idZona    = safe(fila.id_zona)
+    const latitud   = safe(fila.latitud) || '0'
+    const longitud  = safe(fila.longitud) || '0'
+
+    if (!servicio)   errs.push({ fila: n, mensaje: 'Servicio (nombre) es obligatorio' })
+    if (!idCliente)  errs.push({ fila: n, mensaje: 'id_cliente es obligatorio' })
+    if (!idEmpresa)  errs.push({ fila: n, mensaje: 'id_empresa es obligatorio' })
+    if (!idPartida)  errs.push({ fila: n, mensaje: 'id_partida es obligatorio' })
+    if (!idZona)     errs.push({ fila: n, mensaje: 'id_zona es obligatorio' })
+    if (cp && !/^\d{5}$/.test(cp)) errs.push({ fila: n, mensaje: `CP inválido (${cp})` })
+
+    const claveDup = `${servicio}__${idZona}`
+    if (servicio && idZona) {
+      if (seenServicioZona.has(claveDup)) {
+        errs.push({ fila: n, mensaje: `Servicio duplicado en archivo (${servicio}, zona ${idZona})` })
+      } else {
+        seenServicioZona.add(claveDup)
+      }
+    }
+
+    datosValidados.push({
+      _row:       n,
+      servicio, ubicacion, elementos, cp,
+      id_cliente: idCliente,
+      id_empresa: idEmpresa,
+      id_partida: idPartida,
+      id_zona:    idZona,
+      latitud, longitud,
+    })
+  })
+
+  errores.value  = errs
+  erroresUltimos = errs
+  validado.value = true
+}
+
+// ── Envío al servidor POR LOTES de 100 (reemplaza tu enviar() actual) ──
+const TAMANO_LOTE = 100
+
 async function enviar(validateOnly = false) {
   if (!datosValidados.length) return
 
   uploading.value   = true
   progresoPct.value = 0
-  progresoTexto.value = validateOnly ? 'Validando...' : 'Enviando...'
   resultado.value   = null
 
   const token = localStorage.getItem('access_token')
-  const payload = JSON.stringify({
-    action:          config.value.action,
-    validate_only:   validateOnly,
-    fail_threshold:  0.80,
-    all_or_nothing:  false,
-    empleados:       datosValidados,
-  })
 
-  try {
-    const res = await xhrConProgreso(
-      `${API_BASE}${config.value.endpoint}`,
-      payload,
-      token,
-      (pct) => {
-        progresoPct.value   = pct
-        progresoTexto.value = `${validateOnly ? 'Validando' : 'Enviando'}... ${pct}%`
-      }
+  // Parte datosValidados en lotes de 100
+  const lotes = []
+  for (let i = 0; i < datosValidados.length; i += TAMANO_LOTE) {
+    lotes.push(datosValidados.slice(i, i + TAMANO_LOTE))
+  }
+
+  const totalLotes = lotes.length
+  let totalAcum      = 0
+  let insertadosAcum = 0
+  let duplicadosAcum = 0
+  let erroresAcum    = 0
+  let detalleAcum    = []
+  let huboErrorFatal = false
+
+  for (let i = 0; i < lotes.length; i++) {
+    const lote = lotes[i]
+    progresoTexto.value = `${validateOnly ? 'Validando' : 'Enviando'} lote ${i + 1} de ${totalLotes} (${lote.length} filas)...`
+    progresoPct.value   = Math.round((i / totalLotes) * 100)
+
+    const payload = JSON.stringify(
+      tipo.value === 'ubicaciones'
+        ? {
+            action:         config.value.action,
+            validate_only:  validateOnly,
+            fail_threshold: 0.80,
+            all_or_nothing: false,
+            servicios:      lote,
+          }
+        : {
+            action:         config.value.action,
+            validate_only:  validateOnly,
+            fail_threshold: 0.80,
+            all_or_nothing: false,
+            empleados:      lote,
+          }
     )
 
-    const detalle = Array.isArray(res.detalle) ? res.detalle : []
-    const errsServidor = detalle
-      .filter(x => x.status !== 'ok')
-      .map(x => ({ fila: x.row ?? '—', mensaje: x.message ?? 'Error' }))
+    try {
+      const res = await xhrSimple(`${API_BASE}${config.value.endpoint}`, payload, token)
 
-    resultado.value = {
-      ok:             res.status === 'ok',
-      validateOnly,
-      total:          res.total      ?? datosValidados.length,
-      insertados:     res.insertados ?? 0,
-      duplicados:     res.duplicados ?? 0,
-      errores:        res.errores    ?? 0,
-      erroresDetalle: errsServidor,
-    }
+      totalAcum      += res.total      ?? lote.length
+      insertadosAcum += res.insertados ?? 0
+      duplicadosAcum += res.duplicados ?? 0
+      erroresAcum    += res.errores    ?? 0
 
-    if (errsServidor.length) {
-      errores.value  = errsServidor
-      erroresUltimos = errsServidor
-    }
+      const detalleLote = Array.isArray(res.detalle) ? res.detalle : []
+      detalleAcum = detalleAcum.concat(
+        detalleLote.filter(x => x.status !== 'ok').map(x => ({ fila: x.row ?? '—', mensaje: x.message ?? 'Error' }))
+      )
 
-  } catch (err) {
-    resultado.value = {
-      ok: false, validateOnly,
-      total: 0, insertados: 0, duplicados: 0, errores: 1,
-      erroresDetalle: [{ fila: '—', mensaje: err.message }]
+    } catch (err) {
+      if (err.message === 'CLAVE_INCORRECTA') {
+        errorClave.value = 'Clave de acceso incorrecta'
+        desbloqueado.value = false
+        claveIngresada.value = ''
+        uploading.value = false
+        return
+      }
+      // Un lote falló completo (ej. error de red momentáneo) -- lo registramos
+      // y CONTINUAMOS con los siguientes lotes, no abortamos todo el proceso.
+      huboErrorFatal = true
+      erroresAcum += lote.length
+      detalleAcum.push({ fila: `Lote ${i + 1}`, mensaje: `Lote completo falló: ${err.message}` })
     }
-  } finally {
-    uploading.value = false
-    progresoPct.value = 100
   }
+
+  progresoPct.value = 100
+  progresoTexto.value = 'Completado'
+
+  resultado.value = {
+    ok:             !huboErrorFatal,
+    validateOnly,
+    total:          totalAcum,
+    insertados:     insertadosAcum,
+    duplicados:     duplicadosAcum,
+    errores:        erroresAcum,
+    erroresDetalle: detalleAcum,
+  }
+
+  if (detalleAcum.length) {
+    errores.value  = detalleAcum
+    erroresUltimos = detalleAcum
+  }
+
+  uploading.value = false
 }
 
-function xhrConProgreso(url, body, token, onProgress) {
+// ── Versión simple de XHR (sin barra de progreso de bytes -- cada lote
+//    de 100 filas es chico y rápido, la barra global ya la maneja enviar()) ──
+function xhrSimple(url, body, token) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('POST', url, true)
     xhr.setRequestHeader('Content-Type', 'application/json')
     xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-
-    xhr.upload.onprogress = (e) => {
-      if (!e.lengthComputable) return
-      onProgress(Math.round((e.loaded / e.total) * 100))
-    }
+    xhr.setRequestHeader('X-Import-Key', claveGuardada.value)
 
     xhr.onerror = () => reject(new Error('Error de red'))
     xhr.onload  = () => {
       let json = {}
       try { json = JSON.parse(xhr.responseText || '{}') } catch {}
+      if (xhr.status === 403) {
+        reject(new Error('CLAVE_INCORRECTA'))
+        return
+      }
       if (xhr.status < 200 || xhr.status >= 300) {
         reject(new Error(json?.message || json?.mensaje || `HTTP ${xhr.status}`))
         return
@@ -481,6 +694,14 @@ function norm(s) {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ')
 }
 function safe(v) { return String(v ?? '').trim() }
+
+// Normaliza texto: quita acentos, colapsa espacios, mayúsculas (para servicios/ubicaciones)
+function normalizarTexto(s) {
+  return String(s ?? '').trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .toUpperCase()
+}
 
 function toISODate(val) {
   if (!val && val !== 0) return ''
@@ -671,4 +892,12 @@ tbody tr:last-child td { border-bottom: none; }
   .resultado-stats { flex-direction: column; }
   .acciones { justify-content: stretch; flex-direction: column; }
 }
+
+.input-clave {
+  width: 100%; padding: 10px 14px; border-radius: 8px;
+  border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--tx0);
+  font-size: 14px; font-family: inherit; outline: none;
+}
+.input-clave:focus { border-color: var(--acc); }
+.candado-sec { padding-bottom: 8px; }
 </style>

@@ -53,6 +53,31 @@
             </button>
           </div>
         </div>
+
+        <div class="imp-item clickable" @click="triggerUpload('nuevos_directo')">
+          <div class="imp-icon red"><i class="ti ti-alert-triangle" aria-hidden="true"></i></div>
+          <div class="imp-info">
+            <h3>Carga directa (sin validar) <i class="ti ti-arrow-right imp-arrow" aria-hidden="true"></i></h3>
+            <p>⚠️ Inserta datos tal cual vienen, sin validación. Uso restringido.</p>
+          </div>
+        </div>      
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-hdr">
+        <i class="ti ti-map-pin" aria-hidden="true"></i>
+        <span>Ubicaciones</span>
+        <span class="sec-sub">Importaciones masivas</span>
+      </div>
+      <div class="imp-list">
+        <div class="imp-item clickable" @click="triggerUpload('ubicaciones')">
+          <div class="imp-icon blue"><i class="ti ti-map-pin" aria-hidden="true"></i></div>
+          <div class="imp-info">
+            <h3>Ubicaciones / Servicios <i class="ti ti-arrow-right imp-arrow" aria-hidden="true"></i></h3>
+            <p>Se cargarán servicios y ubicaciones desde un archivo Excel predefinido</p>
+          </div>
+        </div>
       </div>
     </div>
 
