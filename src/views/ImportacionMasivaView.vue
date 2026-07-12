@@ -283,7 +283,7 @@ function onFileChange(e) {
 
 function mapearSinValidar(rows) {
   datosValidados = rows.map((fila, i) => ({
-    _row:                i + 3,
+    _row:                i + 2,
     nombre:               normalizarTexto(fila.Nombre),
     paterno:              normalizarTexto(fila.Paterno),
     materno:              normalizarTexto(fila.Materno),
@@ -393,7 +393,7 @@ function validarFirma(workbook) {
   return true
 }
 
-function leerFilas(workbook, sheetName = 'Plantilla', startRow = 2) {
+function leerFilas(workbook, sheetName = 'Plantilla', startRow = 1) {
   const ws = workbook.Sheets[sheetName] ||
              workbook.Sheets['CARGA']   ||
              workbook.Sheets[workbook.SheetNames[0]]
@@ -420,7 +420,7 @@ function validarFrontend(rows) {
   const seenNSS  = new Set()
 
   rows.forEach((fila, i) => {
-    const n = i + 3
+    const n = i + 2
     const nombre  = safe(fila.Nombre)
     const paterno = safe(fila.Paterno)
     const materno = safe(fila.Materno)
@@ -493,7 +493,7 @@ function validarServiciosFrontend(rows) {
   const seenServicioZona = new Set()
 
   rows.forEach((fila, i) => {
-    const n = i + 3
+    const n = i + 2
 
     const servicio  = normalizarTexto(fila.servicio)
     const ubicacion = normalizarTexto(fila.ubicacion || fila['Ubicación'] || '')
@@ -605,6 +605,36 @@ async function enviar(validateOnly = false) {
         errorClave.value = 'Clave de acceso incorrecta'
         desbloqueado.value = false
         claveIngresada.value = ''
+
+
+        if (!validateOnly) {
+          const tablaDestino = tipo.value === 'ubicaciones' ? 'servicios' : 'empleados'
+          try {
+            await fetch(`${API_BASE}/importaciones/historial`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                tipo:           tipo.value,
+                tabla_destino:  tablaDestino,
+                archivo:        archivo.value?.name || '',
+                total:          totalAcum,
+                insertados:     insertadosAcum,
+                duplicados:     duplicadosAcum,
+                errores:        erroresAcum,
+                validate_only:  false,
+                ok:             !huboErrorFatal,
+              }),
+            })
+          } catch (e) {
+            // Si falla el registro del historial, no interrumpimos el flujo --
+            // la carga ya se hizo, solo no queda registrada en la tabla visual.
+            console.warn('No se pudo registrar el historial:', e)
+          }
+        }
+        
         uploading.value = false
         return
       }

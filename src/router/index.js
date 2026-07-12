@@ -40,6 +40,12 @@ const routes = [
     meta: { public: true }
   },
   {
+    path: '/buscar-empleado',
+    name: 'buscador-rapido',
+    component: () => import('@/views/BuscadorRapidoView.vue'),
+    meta: { public: true }, // 👈 sin requiresAuth -- pública, no pide sesión
+  },
+  {
     // AppShell envuelve todas las rutas protegidas
     path: '/',
     component: AppShell,

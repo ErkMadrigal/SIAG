@@ -174,6 +174,60 @@ const PLANTILLAS = {
   bajas:         '/plantillas/plantilla_baja_empleados.xlsx',
 }
 
+// ── Agrega este import junto a tus otros imports ──
+// (no necesitas nada nuevo si ya usas fetch nativo; si usas axios, ajusta)
+
+const TIPO_LABELS = {
+  nuevos:         'Nuevos empleados',
+  actualizacion:  'Actualización de empleados',
+  bajas:          'Baja de empleados',
+  nuevos_directo: 'Carga directa (sin validar)',
+  ubicaciones:    'Ubicaciones / Servicios',
+}
+
+onMounted(async () => {
+  ui.setBreadcrumbs([
+    { label: 'Home',          to: '/' },
+    { label: 'Importaciones', to: '/importaciones' }
+  ])
+
+  await cargarHistorial()
+})
+
+async function cargarHistorial() {
+  const token = localStorage.getItem('access_token')
+  try {
+    const resp = await fetch('/api/v1/importaciones/historial?limit=50', {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    const json = await resp.json()
+    const rows = Array.isArray(json.data) ? json.data : []
+
+    historial.value = rows.map(h => ({
+      id:      h.id,
+      tipo:    TIPO_LABELS[h.tipo] || h.tipo,
+      archivo: h.archivo || '—',
+      total:   h.total,
+      ok:      Boolean(h.ok) && Number(h.errores) === 0,
+      fecha:   formatearFecha(h.created_at),
+      usuario: h.usuario_nombre || '—',
+      // extra por si quieres mostrarlos también en la tabla:
+      insertados: h.insertados,
+      duplicados: h.duplicados,
+      errores:    h.errores,
+      tabla:      h.tabla_destino,
+    }))
+  } catch (e) {
+    console.warn('No se pudo cargar el historial:', e)
+  }
+}
+
+function formatearFecha(fechaSql) {
+  if (!fechaSql) return '—'
+  const d = new Date(fechaSql.replace(' ', 'T'))
+  return d.toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
 onMounted(() => {
   ui.setBreadcrumbs([
     { label: 'Home',          to: '/' },
