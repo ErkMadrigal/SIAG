@@ -30,6 +30,7 @@
       <p class="resultados-count">{{ resultados.length }} resultado{{ resultados.length === 1 ? '' : 's' }}</p>
       <div class="resultados-grid">
         <div v-for="r in resultados" :key="r.no_empleado" class="resultado-card-simple">
+          <span class="resultado-nombre">{{ r.nombreCompleto }}</span>
           <span class="resultado-label">No. de Empleado</span>
           <span class="resultado-no-grande">{{ r.no_empleado }}</span>
         </div>
@@ -145,6 +146,10 @@ async function buscar() {
   border-radius: 12px; padding: 20px; text-align: center;
   display: flex; flex-direction: column; gap: 6px; align-items: center;
 }
+.resultado-nombre {
+  font-size: 14px; font-weight: 600; color: var(--tx0, #fff);
+  margin-bottom: 2px;
+}
 .resultado-label {
   font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
   color: var(--tx2, #9aa3af); font-weight: 600;
@@ -159,4 +164,4 @@ async function buscar() {
   color: var(--tx2, #9aa3af); font-size: 13px; padding: 40px;
 }
 .sin-resultados i { font-size: 32px; }
-</style>    
+</style>
