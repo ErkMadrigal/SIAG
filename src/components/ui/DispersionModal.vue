@@ -59,7 +59,10 @@
               <span v-if="opt.pendiente" class="soon-badge">En desarrollo</span>
             </div>
           </div>
-
+          <div v-if="formatoFiscal === 'sindicato'" class="campos-sindicato">
+            <input v-model="depositoEn" placeholder="Depositado en (banco/institución)" class="input-clave" />
+            <input v-model="cuentaDeposito" placeholder="No. de cuenta de depósito" class="input-clave" />
+          </div>
           <div v-if="nomina?.fiscal_dispersado" class="card-ya-dispersada">
             <i class="ti ti-circle-check-filled"></i>
             Dispersada el {{ formatFecha(nomina.fiscal_dispersado_at) }}
@@ -92,13 +95,18 @@ const props = defineProps({
   nomina: { type: Object, required: true },
 })
 
+const emit = defineEmits(['close', 'completado'])
+
+
 const formatosFiscal = [
   { value: 'albo',      label: 'ALBO',      desc: 'Transferencia múltiple',      icono: 'ti ti-building-bank', color: 'azul',    pendiente: false },
-  { value: 'bajio',     label: 'BanBajío',  desc: 'Macro alta de cuentas',       icono: 'ti ti-building-bank', color: 'morado',  pendiente: true  },
-  { value: 'sindicato', label: 'Sindicato', desc: 'FUO — Formato Único de Operación', icono: 'ti ti-users', color: 'ambar',   pendiente: true  },
+  { value: 'bajio',     label: 'BanBajío',  desc: 'Macro alta de cuentas',       icono: 'ti ti-building-bank', color: 'morado',  pendiente: false },  // 👈 cambiado
+  { value: 'sindicato', label: 'Sindicato', desc: 'FUO — Formato Único de Operación', icono: 'ti ti-users', color: 'ambar',   pendiente: false },
 ]
 
 const formatoFiscal = ref('albo')
+const depositoEn = ref('')        
+const cuentaDeposito = ref('')
 const descargando = ref(null)
 const error = ref(null)
 
@@ -116,7 +124,15 @@ async function descargar(tipo) {
     const url = tipo === 'ias'
       ? `/nomina-fatiga/${props.nomina.id}/dispersion-ias`
       : `/nomina-fatiga/${props.nomina.id}/dispersion-fiscal`
-    const params = tipo === 'fiscal' ? { formato: formatoFiscal.value } : {}
+    const params = tipo === 'fiscal'
+      ? {
+          formato: formatoFiscal.value,
+          ...(formatoFiscal.value === 'sindicato' ? {
+            deposito_en: depositoEn.value,
+            cuenta_deposito: cuentaDeposito.value,
+          } : {}),
+        }
+      : {}
     const response = await api.get(url, { params, responseType: 'blob' })
 
     const disposition = response.headers['content-disposition'] || ''
@@ -139,6 +155,10 @@ async function descargar(tipo) {
       props.nomina.fiscal_dispersado = 1
       props.nomina.fiscal_dispersado_at = new Date().toISOString()
       props.nomina.fiscal_formato = formatoFiscal.value
+    }
+    if (props.nomina.ias_dispersado && props.nomina.fiscal_dispersado) {
+      emit('completado')
+      setTimeout(() => emit('close'), 1500)
     }
   } catch (e) {
     if (e.response?.data instanceof Blob) {
@@ -234,4 +254,22 @@ async function descargar(tipo) {
 }
 
 .error-msg { color: #ef4444; margin-top: .5rem; font-size: .85rem; }
+
+.campos-sindicato {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.input-clave {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--bdr2, #2a2f3a);
+  background: var(--bg1, #0e1218);
+  color: var(--tx0, #fff);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+.input-clave:focus { border-color: var(--acc, #3b82f6); }
 </style>

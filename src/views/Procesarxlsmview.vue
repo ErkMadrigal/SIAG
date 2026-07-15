@@ -325,6 +325,13 @@
           <span class="rc-label">Total pre-nómina</span>
         </div>
       </div>
+      <div v-if="resultado?.asistencia?.omitidas?.length" class="alert-warn" style="margin:0 16px 14px;">
+        <i class="ti ti-alert-circle"></i>
+        {{ resultado.asistencia.omitidas.length }} fila(s) del Excel no se procesaron.
+        <button class="btn-sm" style="margin-left:auto" @click="exportarOmitidas(resultado.asistencia.omitidas)">
+          <i class="ti ti-download"></i> Descargar reporte
+        </button>
+      </div>
       <div class="resultado-actions">
         <button class="btn-sm" @click="limpiar">
           <i class="ti ti-refresh"></i> Cargar otro archivo
@@ -590,11 +597,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { nominaFatigaService } from '@/services/Nominafatiga.service.js'
 import api from '@/services/api.js'
 import DispersionModal from '@/components/ui/DispersionModal.vue'
-
+import * as XLSX from 'xlsx'  
 
 const emit = defineEmits(['ir-nominas'])
 
@@ -671,8 +678,8 @@ async function cargarResumenDeducciones() {
 }
 
 // Cargar resumen al montar
-import { onMounted } from 'vue'
 onMounted(() => cargarResumenDeducciones())
+
 
 // ── Estado archivo xlsm ──────────────────────────────────────
 const archivo       = ref(null)
@@ -848,6 +855,18 @@ const detallesFiltrados = computed(() => {
 
 function sumaCol(col) {
   return detallesFiltrados.value.reduce((s, d) => s + (parseFloat(d[col]) || 0), 0)
+}
+
+function exportarOmitidas(omitidas) {
+  if (!omitidas?.length) return
+  const rows = [
+    ['Fila Excel', 'Nombre', 'Motivo'],
+    ...omitidas.map(o => [o.fila, o.nombre, o.motivo])
+  ]
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  XLSX.utils.book_append_sheet(wb, ws, 'OMITIDAS')
+  XLSX.writeFile(wb, `filas_omitidas_${new Date().toISOString().slice(0,10)}.xlsx`)
 }
 
 async function abrirModalNomina() {
@@ -1306,5 +1325,11 @@ input:disabled { opacity:.6; }
 }
 .chip-check.active .chip-check-box {
   background: var(--acc); border-color: var(--acc); color: #fff;
+}
+
+.alert-warn {
+  display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:8px;
+  background:var(--amb-dim); border:0.5px solid var(--amb); color:var(--amb); font-size:13px;
+  justify-content: space-between;  /* 👈 NUEVO */
 }
 </style>

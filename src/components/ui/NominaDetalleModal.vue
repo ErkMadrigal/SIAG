@@ -63,16 +63,18 @@
           <table v-if="tabActiva === 'prenomina'" class="mn-tabla">
             <thead>
               <tr>
-                <th class="th-grupo th-perc" colspan="8">PERCEPCIONES</th>
+                <th class="th-grupo th-perc" colspan="9">PERCEPCIONES</th>
                 <th class="th-grupo th-ded"  colspan="5">DEDUCCIONES</th>
                 <th class="th-grupo th-tot"  colspan="2">TOTALES</th>
+                <th class="th-grupo th-base" colspan="2">ORIGEN</th>
               </tr>
               <tr>
                 <th class="text-left">Empleado</th>
                 <th class="text-left">Zona</th>
                 <th title="Nuevo ingreso este periodo">★</th>
                 <th title="Sueldo base quincenal">Sueldo</th>
-                <th title="Tiempo extra (24E/12E)">Extra</th>
+                <th title="Sueldo quincenal (tabulador o salario_mensual/2)">Sueldo Quincenal</th>
+                <th title="Tiempo extra (24E/12E/8E)">Extra</th>
                 <th title="Monto adicional capturado en el Excel">Adicional</th>
                 <th title="Festivos trabajados + Dobletes">Fest/Dob</th>
                 <th title="Descuento por faltas">Faltas</th>
@@ -83,11 +85,11 @@
                 <th title="Total neto a pagar (pre-nómina)" class="col-total">Neto pagar</th>
                 <th title="Bono del tabulador">Bono</th>
                 <th title="Comentarios del Excel">Comentarios</th>
-
+                <th class="text-left">Archivo Origen</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="detallesFiltrados.length === 0"><td colspan="14" class="sin-resultados">Sin resultados</td></tr>
+              <tr v-if="detallesFiltrados.length === 0"><td colspan="17" class="sin-resultados">Sin resultados</td></tr>
               <tr v-for="d in detallesFiltrados" :key="d.id"
                 :class="{ 'row-nuevo': d.es_nuevo==1, 'row-sin-match': !d.id_empleado }">
                 <td class="col-nombre">
@@ -101,6 +103,7 @@
                   <span v-else class="muted">—</span>
                 </td>
                 <td class="mono">{{ fmt(d.sueldo_semanal) }}</td>
+                <td class="mono">{{ d.sueldo_quincenal ? fmt(d.sueldo_quincenal) : '—' }}</td>
                 <td class="mono grn">{{ d.tiempo_extra > 0 ? '+'+fmt(d.tiempo_extra) : '—' }}</td>
                 <td class="mono grn">{{ d.adicional > 0 ? '+'+fmt(d.adicional) : '—' }}</td>
                 <td class="mono grn">
@@ -119,12 +122,16 @@
                 <td class="col-comentarios" style="text-align:left; font-size:11px; color:var(--tx2); max-width:200px;">
                   {{ d.comentarios || '—' }}
                 </td>
+                <td style="font-size:11px; color:var(--tx2);" :title="d.archivo_origen">
+                  {{ d.archivo_origen || '—' }}
+                </td>
               </tr>
             </tbody>
             <tfoot>
               <tr class="mn-footer">
                 <td colspan="3"><strong>TOTALES</strong></td>
                 <td class="mono">{{ fmt(sumaCol('sueldo_semanal')) }}</td>
+                <td></td>
                 <td class="mono grn">+{{ fmt(sumaCol('tiempo_extra')) }}</td>
                 <td class="mono grn">+{{ fmt(sumaCol('adicional')) }}</td>
                 <td class="mono grn">+{{ fmt(sumaCol('monto_festivos') + sumaCol('monto_dobletes')) }}</td>
@@ -136,7 +143,7 @@
                 <td class="mono grn col-total">{{ fmt(sumaCol('total')) }}</td>
                 <td class="mono grn">+{{ fmt(sumaCol('bono')) }}</td>
                 <td></td>
-
+                <td></td>
               </tr>
             </tfoot>
           </table>
@@ -145,13 +152,15 @@
           <table v-else-if="tabActiva === 'fiscal'" class="mn-tabla mn-tabla-fiscal">
             <thead>
               <tr>
-                <th class="th-grupo th-base" colspan="5">BASE</th>
+                <th class="th-grupo th-base" colspan="6">BASE</th>
                 <th class="th-grupo th-ded"  colspan="7">DEDUCCIONES FISCALES</th>
                 <th class="th-grupo th-tot"  colspan="3">DISPERSIÓN</th>
+                <th class="th-grupo th-base" colspan="1">ORIGEN</th>
               </tr>
               <tr>
                 <th class="text-left sticky-col">Empleado</th>
                 <th>Días Lab.</th>
+                <th title="Sueldo quincenal (tabulador o salario_mensual/2)">Sueldo Quincenal</th>
                 <th>SD</th>
                 <th>SDI</th>
                 <th>Ingreso Q</th>
@@ -165,10 +174,11 @@
                 <th class="col-fiscal">Neto Fiscal</th>
                 <th style="color:var(--amb)">IAS</th>
                 <th class="col-total">Total Disp.</th>
+                <th class="text-left">Archivo Origen</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="detallesFiltrados.length === 0"><td colspan="15" class="sin-resultados">Sin resultados</td></tr>
+              <tr v-if="detallesFiltrados.length === 0"><td colspan="17" class="sin-resultados">Sin resultados</td></tr>
               <tr v-for="d in detallesFiltrados" :key="d.id"
                 :class="{ 'row-nuevo': d.es_nuevo==1, 'row-sin-match': !d.id_empleado }">
                 <td class="col-nombre sticky-col">
@@ -177,6 +187,7 @@
                   {{ d.nombre_excel }}
                 </td>
                 <td class="mono center">{{ d.dias_pagados ?? 15 }}</td>
+                <td class="mono">{{ d.sueldo_quincenal ? fmt(d.sueldo_quincenal) : '—' }}</td>
                 <td class="mono">{{ d.sd ? fmt(d.sd) : '—' }}</td>
                 <td class="mono">{{ d.sdi ? fmt(d.sdi) : '—' }}</td>
                 <td class="mono">{{ d.ingreso_quincenal ? fmt(d.ingreso_quincenal) : '—' }}</td>
@@ -190,11 +201,14 @@
                 <td class="mono col-fiscal">{{ d.neto_fiscal ? fmt(d.neto_fiscal) : '—' }}</td>
                 <td class="mono" style="color:var(--amb)">{{ d.ias > 0 ? fmt(d.ias) : '—' }}</td>
                 <td class="mono col-total grn">{{ d.total_dispersion ? fmt(d.total_dispersion) : fmt(d.total) }}</td>
+                <td style="font-size:11px; color:var(--tx2);" :title="d.archivo_origen">
+                  {{ d.archivo_origen || '—' }}
+                </td>
               </tr>
             </tbody>
             <tfoot>
               <tr class="mn-footer">
-                <td class="sticky-col" colspan="2"><strong>TOTALES</strong></td>
+                <td class="sticky-col" colspan="3"><strong>TOTALES</strong></td>
                 <td colspan="2"></td>
                 <td class="mono">{{ fmt(sumaCol('ingreso_quincenal')) }}</td>
                 <td class="mono red">{{ fmt(sumaCol('isr_bruto')) }}</td>
@@ -207,6 +221,7 @@
                 <td class="mono col-fiscal">{{ fmt(sumaCol('neto_fiscal')) }}</td>
                 <td class="mono" style="color:var(--amb)">{{ fmt(sumaCol('ias')) }}</td>
                 <td class="mono grn col-total">{{ fmt(sumaCol('total_dispersion') || sumaCol('total')) }}</td>
+                <td></td>
               </tr>
             </tfoot>
           </table>
@@ -246,7 +261,11 @@
           <button class="mn-close" @click="mostrarDispersion = false"><i class="ti ti-x"></i></button>
         </div>
         <div style="padding: 0 20px 20px;">
-          <DispersionModal :nomina="nomina" />
+          <DispersionModal
+            :nomina="nomina"
+            @close="mostrarDispersion = false"
+            @completado="onDispersionCompleta"
+          />
         </div>
       </div>
     </div>
@@ -364,6 +383,11 @@ async function exportarExcel() {
   } finally {
     exportando.value = false
   }
+}
+
+async function onDispersionCompleta() {
+  await cargar()       
+  emit('actualizado')  
 }
 
 async function cancelarNomina() {

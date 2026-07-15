@@ -153,31 +153,42 @@
       </div>
     </div>
 
-    <!-- TAB: Banco -->
-    <div v-if="activeTab === 'banco'" class="sec">
-      <div class="sec-hdr"><i class="ti ti-credit-card"></i> Datos bancarios</div>
-      <div class="sec-body">
-        <div class="field-grid">
-          <div class="field field-full">
-            <label>CLABE interbancaria</label>
-            <input v-model="banco.interbancaria" maxlength="23"
-              placeholder="0000-0000-0000-0000-00"
-              @input="onClabeInput" @blur="onClabeBlur" />
-          </div>
-          <div class="field"><label>Institución bancaria</label>
-            <input v-model="banco.institucionBancaria" readonly style="opacity:.7" /></div>
-          <div class="field"><label>Código banco</label>
-            <input v-model="banco.bancoId" readonly style="opacity:.7" /></div>
+   <!-- TAB: Banco -->
+  <div v-if="activeTab === 'banco'" class="sec">
+    <div class="sec-hdr"><i class="ti ti-credit-card"></i> Datos bancarios</div>
+    <div class="sec-body">
+      <div class="field-grid">
+        <div class="field field-full">
+          <label>
+            CLABE interbancaria
+            <span v-if="!puedeEditarClabe" class="badge-lock" title="Solo administradores pueden editar este campo">
+              <i class="ti ti-lock"></i> Solo Admin
+            </span>
+          </label>
+          <input
+            v-model="banco.interbancaria"
+            maxlength="23"
+            placeholder="0000-0000-0000-0000-00"
+            :disabled="!puedeEditarClabe"
+            :style="!puedeEditarClabe ? 'opacity:.6; cursor:not-allowed;' : ''"
+            @input="onClabeInput"
+            @blur="onClabeBlur"
+          />
         </div>
-        <div class="sec-footer">
-          <button class="btn-primary-lg" :disabled="saving" @click="guardarBanco">
-            <i class="ti ti-loader-2 spin" v-if="saving"></i>
-            <i class="ti ti-check" v-else></i>
-            {{ saving ? 'Guardando...' : 'Guardar cambios' }}
-          </button>
-        </div>
+        <div class="field"><label>Institución bancaria</label>
+          <input v-model="banco.institucionBancaria" readonly style="opacity:.7" /></div>
+        <div class="field"><label>Código banco</label>
+          <input v-model="banco.bancoId" readonly style="opacity:.7" /></div>
+      </div>
+      <div class="sec-footer">
+        <button class="btn-primary-lg" :disabled="saving" @click="guardarBanco">
+          <i class="ti ti-loader-2 spin" v-if="saving"></i>
+          <i class="ti ti-check" v-else></i>
+          {{ saving ? 'Guardando...' : 'Guardar cambios' }}
+        </button>
       </div>
     </div>
+  </div>
 
     <!-- TAB: Foto -->
     <div v-if="activeTab === 'foto'" class="sec">
@@ -315,6 +326,15 @@ const avatarColor = computed(() => AVATAR_COLORS[empleado.value?.id % AVATAR_COL
 const trabajo = reactive({
   turno: '', puesto: '', periodicidad: '', fecha_efectiva: '',
   modo_sueldo: 'tabulador', salario_mensual: null
+})
+
+const puedeEditarClabe = computed(() => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return (user.nivel ?? 99) <= 2
+  } catch {
+    return false // si algo sale mal parseando, por seguridad NO deja editar
+  }
 })
 
 onMounted(async () => {
@@ -717,5 +737,12 @@ select option { background: var(--bg1); }
 }
 .modo-sueldo-toggle button.active {
   background: var(--acc-dim); border-color: var(--acc); color: var(--acc); font-weight: 500;
+}
+
+.badge-lock {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; padding: 2px 7px; border-radius: 20px;
+  background: var(--amb-dim, rgba(245,158,11,0.12)); color: var(--amb, #f59e0b);
+  margin-left: 8px; font-weight: 500;
 }
 </style>

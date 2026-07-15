@@ -28,18 +28,23 @@
           </div>
         </div>
 
-        <div class="imp-item clickable" @click="triggerUpload('actualizacion')">
-          <div class="imp-icon blue"><i class="ti ti-user-edit" aria-hidden="true"></i></div>
+        <div class="imp-item clickable" @click="mostrarPlantillaModal = true">
+          <div class="imp-icon blue"><i class="ti ti-edit" aria-hidden="true"></i></div>
           <div class="imp-info">
-            <h3>Actualización de empleados <i class="ti ti-arrow-right imp-arrow" aria-hidden="true"></i></h3>
-            <p>Se actualizarán todos los datos de los empleados desde un archivo Excel predefinido</p>
+            <h3>Actualización dinámica <i class="ti ti-arrow-right imp-arrow" aria-hidden="true"></i></h3>
+            <p>Elige qué campos actualizar hoy y genera tu plantilla al momento</p>
           </div>
           <div class="imp-actions" @click.stop>
-            <button class="btn-sm" @click="descargarPlantilla('actualizacion')">
-              <i class="ti ti-download" aria-hidden="true"></i> Plantilla
+            <button class="btn-sm" @click="triggerUpload('actualizar_dinamico')">
+              <i class="ti ti-upload"></i> Subir llena
             </button>
           </div>
         </div>
+
+        <PlantillaDinamicaModal
+          :visible="mostrarPlantillaModal"
+          @close="mostrarPlantillaModal = false"
+        />
 
         <div class="imp-item clickable" @click="triggerUpload('bajas')">
           <div class="imp-icon red"><i class="ti ti-user-off" aria-hidden="true"></i></div>
@@ -163,6 +168,9 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui.js'
+import PlantillaDinamicaModal from '@/components/ui/PlantillaDinamicaModal.vue' 
+
+const mostrarPlantillaModal = ref(false)
 
 const router    = useRouter()
 const ui        = useUiStore()

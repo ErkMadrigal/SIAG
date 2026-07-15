@@ -240,6 +240,12 @@ const CONFIGS = {
     endpoint:    '/empleados/masivo-directo',
     action:      'empleado_masivo_directo',
   },
+  actualizar_dinamico: {
+    titulo:      'Actualización dinámica de empleados',
+    descripcion: 'Sube un Excel con columna "id" + las columnas que quieras actualizar (sueldo, fechas, teléfono, lo que sea)',
+    endpoint:    '/empleados/actualizar-masivo-dinamico',
+    action:      'empleado_actualizar_dinamico',
+  },
 }
 
 
@@ -282,29 +288,36 @@ function onFileChange(e) {
 }
 
 function mapearSinValidar(rows) {
-  datosValidados = rows.map((fila, i) => ({
-    _row:                i + 2,
-    nombre:               normalizarTexto(fila.Nombre),
-    paterno:              normalizarTexto(fila.Paterno),
-    materno:              normalizarTexto(fila.Materno),
-    curp:                 normalizarTexto(fila.CURP),
-    rfc:                  normalizarTexto(fila.RFC),
-    nss:                  safe(fila.NSS).replace(/\D/g, ''),           // solo dígitos, no aplica mayúsculas a números
-    cp:                   safe(fila.CP_Fiscal).replace(/\D/g, ''),
-    fecha_ingreso:        toISODate(fila.Fecha_Alta) || '',
-    interbancaria:        safe(fila.Clabe_Interbancaria).replace(/\D/g, ''),
-    alergias:             normalizarTexto(fila.Alergia) || 'N/A',
-    turno:                safe(fila.id_turno || fila.Turno),
-    puesto:               safe(fila.id_puesto || fila.Puesto),
-    periodicidad:         safe(fila.id_periodicidad || fila.Periodicidad),
-    escolaridad:          safe(fila.id_escolaridad || fila.Escolaridad),
-    tipoSangre:            safe(fila.id_tiposangre  || fila.Tipo_sangre),
-    parentesco:            safe(fila.id_parentesco  || fila.Parentesco),
-    nombreEmergencia:      normalizarTexto(fila.Nombre_Emergencia),
-    telefonoEmergencia:    safe(fila.Telefono_Emergencia).replace(/\D/g, ''),
-  }))
+  datosValidados = rows.map((fila, i) => {
+    const sueldo = safe(fila.salario_mensual).replace(/[^\d.]/g, '') // solo números y punto decimal
+    const salarioMensual = sueldo ? parseFloat(sueldo) : null
+    const modoSueldo = salarioMensual && salarioMensual > 0 ? 'salario' : 'tabulador'
 
-  // Sin errores nunca -- se habilita el botón de enviar directo
+    return {
+      _row:                i + 2,
+      nombre:               normalizarTexto(fila.Nombre),
+      paterno:              normalizarTexto(fila.Paterno),
+      materno:              normalizarTexto(fila.Materno),
+      curp:                 normalizarTexto(fila.CURP),
+      rfc:                  normalizarTexto(fila.RFC),
+      nss:                  safe(fila.NSS).replace(/\D/g, ''),
+      cp:                   safe(fila.CP_Fiscal).replace(/\D/g, ''),
+      fecha_ingreso:        toISODate(fila.Fecha_Alta) || '',
+      interbancaria:        safe(fila.Clabe_Interbancaria).replace(/\D/g, ''),
+      alergias:             normalizarTexto(fila.Alergia) || 'N/A',
+      turno:                safe(fila.id_turno || fila.Turno),
+      puesto:               safe(fila.id_puesto || fila.Puesto),
+      periodicidad:         safe(fila.id_periodicidad || fila.Periodicidad),
+      escolaridad:          safe(fila.id_escolaridad || fila.Escolaridad),
+      tipoSangre:            safe(fila.id_tiposangre  || fila.Tipo_sangre),
+      parentesco:            safe(fila.id_parentesco  || fila.Parentesco),
+      nombreEmergencia:      normalizarTexto(fila.Nombre_Emergencia),
+      telefonoEmergencia:    safe(fila.Telefono_Emergencia).replace(/\D/g, ''),
+      salario_mensual:       salarioMensual,
+      modo_sueldo:           modoSueldo,
+    }
+  })
+
   errores.value  = []
   erroresUltimos = []
   validado.value = true
@@ -320,13 +333,11 @@ function procesarArchivo(file) {
     const data     = new Uint8Array(e.target.result)
     const workbook = XLSX.read(data, { type: 'array', cellDates: true, dateNF: 'yyyy-mm-dd' })
 
-    // Verificar firma
     if (!validarFirma(workbook)) {
       archivo.value = null
       return
     }
 
-    // Leer filas
     const { headers, rows } = leerFilas(workbook)
     if (!headers.length) {
       errores.value = [{ fila: 1, mensaje: 'No se detectaron encabezados en la fila 1' }]
@@ -339,11 +350,62 @@ function procesarArchivo(file) {
       validarServiciosFrontend(rows)
     } else if (tipo.value === 'nuevos_directo') {
       mapearSinValidar(rows)
+    } else if (tipo.value === 'actualizar_dinamico') {   // 👈 esta rama
+      validarActualizacionDinamica(rows, headers)          // 👈 y esta llamada
     } else {
       validarFrontend(rows)
     }
   }
   reader.readAsArrayBuffer(file)
+}
+
+// ── Validación para actualización dinámica -- SIN mapeo fijo de columnas.
+// Solo exige que exista una columna "id". El resto de las columnas se
+// pasan tal cual vengan (el backend filtra por su lista blanca).
+function validarActualizacionDinamica(rows, headers) {
+  const errs = []
+  datosValidados = []
+
+  // Busca la columna "id" sin importar mayúsculas/minúsculas
+  const headerId = headers.find(h => h.trim().toLowerCase() === 'id')
+  if (!headerId) {
+    errores.value  = [{ fila: 1, mensaje: "El archivo debe traer una columna llamada 'id'" }]
+    erroresUltimos = errores.value
+    validado.value = true
+    return
+  }
+
+  rows.forEach((fila, i) => {
+    const n = i + 2
+    const idRaw = safe(fila[headerId]).replace(/\D/g, '')
+
+    if (!idRaw) {
+      errs.push({ fila: n, mensaje: 'Fila sin id válido -- se omite' })
+      return
+    }
+
+    const obj = { _row: n, id: parseInt(idRaw, 10) }
+
+    headers.forEach(h => {
+      if (h === headerId) return
+
+      let valor = fila[h]
+
+      if (valor instanceof Date) {
+        valor = toISODate(valor)
+      } else {
+        valor = safe(valor)
+      }
+
+      if (valor !== '') obj[h] = valor
+    })
+
+    datosValidados.push(obj)
+  })
+
+  errores.value  = errs
+  erroresUltimos = errs
+  validado.value = true
 }
 
 // ── ÚNICA definición de xhrConProgreso (ya con el header de clave) ──
@@ -412,6 +474,8 @@ function leerFilas(workbook, sheetName = 'Plantilla', startRow = 1) {
   return { headers, rows }
 }
 
+// ── Agrega esto DENTRO del forEach de validarFrontend(), justo después
+// de donde ya declaras id_turno/id_puesto/id_periodicidad ──
 function validarFrontend(rows) {
   const errs = []
   datosValidados = []
@@ -431,9 +495,14 @@ function validarFrontend(rows) {
     const clabe   = safe(fila.Clabe_Interbancaria).replace(/\D/g, '')
     const tel     = safe(fila.Telefono_Emergencia).replace(/\D/g, '')
     const fecha   = toISODate(fila.Fecha_Alta)
-    const id_turno       = safe(fila.id_turno || fila.Turno)
-    const id_puesto      = safe(fila.id_puesto || fila.Puesto)
+    const id_turno        = safe(fila.id_turno || fila.Turno)
+    const id_puesto       = safe(fila.id_puesto || fila.Puesto)
     const id_periodicidad = safe(fila.id_periodicidad || fila.Periodicidad)
+
+    // 👇 NUEVO -- salario_mensual: header exacto 'salario_mensual'
+    const sueldoRaw = safe(fila.salario_mensual).replace(/[^\d.]/g, '')
+    const salarioMensual = sueldoRaw ? parseFloat(sueldoRaw) : null
+    const modoSueldo = salarioMensual && salarioMensual > 0 ? 'salario' : 'tabulador'
 
     if (!paterno || !nombre) errs.push({ fila: n, mensaje: 'Nombre incompleto (Paterno o Nombre vacío)' })
     if (nss   && !/^\d{11}$/.test(nss))   errs.push({ fila: n, mensaje: `NSS inválido (${nss})` })
@@ -445,7 +514,6 @@ function validarFrontend(rows) {
     if (!id_puesto)       errs.push({ fila: n, mensaje: 'id_puesto es obligatorio' })
     if (!id_periodicidad) errs.push({ fila: n, mensaje: 'id_periodicidad es obligatorio' })
 
-    // CURP
     if (curp) {
       const m = explicarCURP(curp)
       if (m) errs.push({ fila: n, mensaje: `CURP inválido. ${m}` })
@@ -453,7 +521,6 @@ function validarFrontend(rows) {
       else seenCURP.add(curp)
     }
 
-    // RFC vs CURP
     if (rfc && curp) {
       const m = rfcVsCurp(rfc, curp)
       if (m) errs.push({ fila: n, mensaje: m })
@@ -478,6 +545,8 @@ function validarFrontend(rows) {
       parentesco:         safe(fila.id_parentesco  || fila.Parentesco),
       nombreEmergencia:   safe(fila.Nombre_Emergencia),
       telefonoEmergencia: tel,
+      salario_mensual:    salarioMensual,   // 👈 NUEVO
+      modo_sueldo:        modoSueldo,       // 👈 NUEVO
     })
   })
 
@@ -662,6 +731,7 @@ async function enviar(validateOnly = false) {
   if (detalleAcum.length) {
     errores.value  = detalleAcum
     erroresUltimos = detalleAcum
+    exportarErrores()
   }
 
   uploading.value = false
