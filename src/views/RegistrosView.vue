@@ -1,3 +1,23 @@
+<!--
+  Cambios sobre tu versión:
+
+  1. Botón "Exportar Excel" junto a "Recargar", llama a
+     GET /biometrico/registros/exportar-xlsx (ver exportarXlsx_biometrico.php
+     aparte) mandando los filtros actuales como query params.
+
+  2. Dos selects nuevos -- Servicio y Cliente -- llenados desde tus
+     catálogos ya existentes (/catalogos/servicios/select y
+     /catalogos/clientes). OJO: como no toqué registrosBiometrico() (no
+     la tenías a la mano), estos dos filtros SOLO afectan lo que se
+     exporta, no la tabla en pantalla -- lo dejé bien marcado con un
+     texto chiquito abajo del todo para que no genere confusión. Si más
+     adelante me pasas registrosBiometrico() los conecto también a la
+     tabla.
+
+  3. Ajusté el import de `api` -- lo necesito para las llamadas nuevas
+     (catálogos + export). Si tu proyecto expone eso distinto a
+     '@/services/api.js', cambia nada más esa línea de import.
+-->
 <template>
   <div class="bio-view">
 
@@ -7,9 +27,16 @@
         <h1 class="view-title">Registros biométricos</h1>
         <p class="view-sub" v-if="meta.total">{{ meta.total.toLocaleString() }} registros en total</p>
       </div>
-      <button class="btn-sm" @click="fetchData">
-        <i class="ti ti-refresh" aria-hidden="true"></i> Recargar
-      </button>
+      <div class="header-actions">
+        <button class="btn-sm" @click="exportarExcel" :disabled="exportando">
+          <i class="ti ti-loader-2 spin" v-if="exportando" aria-hidden="true"></i>
+          <i class="ti ti-file-spreadsheet" v-else aria-hidden="true"></i>
+          {{ exportando ? 'Generando...' : 'Exportar Excel' }}
+        </button>
+        <button class="btn-sm" @click="fetchData">
+          <i class="ti ti-refresh" aria-hidden="true"></i> Recargar
+        </button>
+      </div>
     </div>
 
     <!-- Filtros -->
@@ -37,6 +64,17 @@
           <input type="date" v-model="filtros.date_to" />
         </div>
 
+        <!-- NUEVO -- solo aplican al exportar, ver nota arriba -->
+        <select class="sel" v-model="filtros.servicio_id">
+          <option :value="null">Todos los servicios</option>
+          <option v-for="s in serviciosList" :key="s.id" :value="s.id">{{ s.nombre }}</option>
+        </select>
+
+        <select class="sel" v-model="filtros.cliente_id">
+          <option :value="null">Todos los clientes</option>
+          <option v-for="c in clientesList" :key="c.id" :value="c.id">{{ c.nombre }}</option>
+        </select>
+
         <select class="sel" v-model="filtros.pageSize" @change="aplicarFiltros">
           <option :value="10">10</option>
           <option :value="25">25</option>
@@ -48,6 +86,13 @@
           <i class="ti ti-filter" aria-hidden="true"></i> Aplicar
         </button>
       </div>
+      <p class="filtros-hint">
+        <i class="ti ti-info-circle" aria-hidden="true"></i>
+        Servicio y Cliente aplican solo al exportar a Excel -- la tabla de abajo usa Buscar/Desde/Hasta.
+      </p>
+      <p v-if="errorExport" class="filtros-hint filtros-hint--error">
+        <i class="ti ti-alert-circle" aria-hidden="true"></i> {{ errorExport }}
+      </p>
     </div>
 
     <!-- Tabla -->
@@ -187,6 +232,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
 import { biometricoService } from '@/services/biometrico.service.js'
+import api from '@/services/api.js'
 
 const ui = useUiStore()
 
@@ -198,11 +244,43 @@ const mapaOpen  = ref(false)
 const mapaData  = ref(null)
 
 const filtros = reactive({
-  search:    '',
-  date_from: '',
-  date_to:   '',
-  pageSize:  25,
+  search:      '',
+  date_from:   '',
+  date_to:     '',
+  pageSize:    25,
+  servicio_id: null, // NUEVO -- solo se usa al exportar (ver nota arriba)
+  cliente_id:  null, // NUEVO -- solo se usa al exportar
 })
+
+// NUEVO -- catálogos para los selects de Servicio/Cliente del export.
+// El shape exacto de /catalogos/servicios/select y /catalogos/clientes
+// no lo tenía confirmado, así que el mapeo de abajo prueba varios
+// nombres de campo comunes (servicio/nombre/nombre_corto/valor). Si el
+// select sale con las etiquetas vacías, dime qué trae la respuesta real
+// y ajusto el mapeo en una línea.
+const serviciosList = ref([])
+const clientesList  = ref([])
+
+async function cargarCatalogosExport() {
+  try {
+    const { data: dataServ } = await api.get('/catalogos/servicios/select')
+    serviciosList.value = (dataServ.data || dataServ || []).map((s) => ({
+      id: s.id,
+      nombre: s.servicio ?? s.nombre ?? s.valor ?? `#${s.id}`,
+    }))
+  } catch (err) {
+    console.error('Error cargando catálogo de servicios:', err)
+  }
+  try {
+    const { data: dataCli } = await api.get('/catalogos/clientes')
+    clientesList.value = (dataCli.data || dataCli || []).map((c) => ({
+      id: c.id,
+      nombre: c.nombre_corto ?? c.nombre ?? c.razon_social ?? `#${c.id}`,
+    }))
+  } catch (err) {
+    console.error('Error cargando catálogo de clientes:', err)
+  }
+}
 
 const AVATAR_COLORS = [
   { color: '#4f8ef7', bg: '#1a2d4d' },
@@ -218,6 +296,7 @@ onMounted(() => {
     { label: 'Biométrico', to: '/biometrico' }
   ])
   fetchData()
+  cargarCatalogosExport()
 })
 
 async function fetchData() {
@@ -288,6 +367,50 @@ function abrirEnMaps() {
 }
 function getAvatarBg(i)    { return AVATAR_COLORS[i % AVATAR_COLORS.length].bg }
 function getAvatarColor(i) { return AVATAR_COLORS[i % AVATAR_COLORS.length].color }
+
+/* ── Exportar a Excel ─────────────────────────────────────────────
+   Manda los filtros actuales (search/date_from/date_to/servicio_id/
+   cliente_id) tal cual al backend -- si no hay ninguno puesto, exporta
+   completo. Mismo patrón de descarga de blob que ya usas en
+   NominaDetalleModal. */
+const exportando  = ref(false)
+const errorExport = ref('')
+
+async function exportarExcel() {
+  exportando.value = true
+  errorExport.value = ''
+  try {
+    const params = {}
+    if (filtros.search)      params.search      = filtros.search
+    if (filtros.date_from)   params.date_from   = filtros.date_from
+    if (filtros.date_to)     params.date_to     = filtros.date_to
+    if (filtros.servicio_id) params.servicio_id = filtros.servicio_id
+    if (filtros.cliente_id)  params.cliente_id  = filtros.cliente_id
+
+    const response = await api.get('/biometrico/registros/exportar-xlsx', {
+      params,
+      responseType: 'blob',
+    })
+
+    const disposition = response.headers['content-disposition'] || ''
+    const match = disposition.match(/filename="(.+)"/)
+    const nombreArchivo = match ? match[1] : `asistencias_biometrico_${Date.now()}.xlsx`
+
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', nombreArchivo)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Error exportando asistencias biométrico:', err)
+    errorExport.value = err?.response?.data?.message || 'No se pudo exportar -- intenta de nuevo'
+  } finally {
+    exportando.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -298,12 +421,18 @@ function getAvatarColor(i) { return AVATAR_COLORS[i % AVATAR_COLORS.length].colo
 }
 .view-title { font-size: 20px; font-weight: 600; color: var(--tx0); }
 .view-sub   { font-size: 12px; color: var(--tx2); margin-top: 3px; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
 
 /* Filtros */
 .filtros-grid {
   display: flex; align-items: center; gap: 10px;
   padding: 12px 14px; flex-wrap: wrap;
 }
+.filtros-hint {
+  padding: 0 14px 10px; margin: 0; font-size: 11px; color: var(--tx3);
+  display: flex; align-items: center; gap: 5px;
+}
+.filtros-hint--error { color: var(--red); }
 .search-box {
   display: flex; align-items: center; gap: 8px;
   background: var(--bg2); border: 0.5px solid var(--bdr2);
@@ -333,6 +462,7 @@ function getAvatarColor(i) { return AVATAR_COLORS[i % AVATAR_COLORS.length].colo
   background: var(--bg2); border: 0.5px solid var(--bdr2);
   border-radius: 8px; padding: 6px 8px;
   font-size: 12px; color: var(--tx1); outline: none; font-family: inherit;
+  max-width: 180px;
 }
 
 /* Sección */
@@ -449,6 +579,7 @@ tbody tr:last-child td { border-bottom: none; }
   transition: all .15s; font-family: inherit;
 }
 .btn-sm:hover { background: var(--bg3); color: var(--tx0); }
+.btn-sm:disabled { opacity: .6; cursor: not-allowed; }
 .btn-primary-lg {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 7px 14px; border-radius: 8px; border: none;

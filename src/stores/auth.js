@@ -25,7 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
       'registros', 'prenomina', 'cargar_nomina', 'altas_bajas',
       'nomina_workflow', 'revisar_nomina', 'dispersar_nomina',   
       'incidencias', 'hospitales', 'catalogos', 'tabulador',
-      'usuarios', 'configuracion', 'importaciones',
+      'usuarios', 'configuracion', 'importaciones', 'fatiga_buscador',
     ]
     return user.value?.vistas || []
   })

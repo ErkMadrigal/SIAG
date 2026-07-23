@@ -18,6 +18,8 @@ export const VISTAS_MAP = {
   registros:     { path: '/registros',       label: 'Registros',     icon: 'ti-clipboard-list',    section: 'Asistencias' },
   prenomina:     { path: '/prenomina',       label: 'Pre-nómina',    icon: 'ti-chart-bar',         section: 'Reportes' },
   cargar_nomina: { path: '/cargar-nomina', label: 'Cargar nómina', icon: 'ti-cloud-upload', section: 'Reportes' },
+  fatiga_buscador: { path: '/fatiga-buscador', label: 'Fatiga · Buscador', icon: 'ti-search', section: 'Reportes' },
+
 
   nomina_workflow: { path: '/nominas', label: 'Nóminas', icon: 'ti-list-check', section: 'Reportes' },
 
@@ -43,7 +45,7 @@ const routes = [
     path: '/buscar-empleado',
     name: 'buscador-rapido',
     component: () => import('@/views/BuscadorRapidoView.vue'),
-    meta: { public: true }, // 👈 sin requiresAuth -- pública, no pide sesión
+    meta: { public: true }, 
   },
   {
     // AppShell envuelve todas las rutas protegidas
@@ -61,6 +63,8 @@ const routes = [
       { path: 'registros',             name: 'registros',         component: () => import('@/views/RegistrosView.vue'),                                   meta: { vista: 'registros' } },
       { path: 'prenomina',             name: 'prenomina',         component: () => import('@/views/PrenominaView.vue'),                                   meta: { vista: 'prenomina' } },
       { path: 'cargar-nomina', name: 'cargar-nomina', component: () => import('@/views/ProcesarXlsmView.vue'), meta: { vista: 'cargar_nomina' } },
+      { path: 'fatiga-buscador', name: 'fatiga-buscador', component: () => import('@/views/FatigaBuscadorView.vue'), meta: { vista: 'fatiga_buscador' } },
+
       { path: 'altas-bajas',           name: 'altas-bajas',       component: () => import('@/views/AltasBajasView.vue'),                                  meta: { vista: 'altas_bajas' } },
       { path: 'incidencias',           name: 'incidencias',       component: () => import('@/views/IncidenciasView.vue'),                                  meta: { vista: 'incidencias' } },
       { path: 'hospitales',            name: 'hospitales',        component: () => import('@/views/PlaceholderView.vue'),                                  meta: { vista: 'hospitales' } },
@@ -111,6 +115,8 @@ router.beforeEach((to, from, next) => {
   }
 
   if (to.meta.vista && to.meta.vista !== 'home') {
+    console.log('vista pedida:', to.meta.vista, '| vistas del usuario:', auth.userVistas)
+
     // ← Ahora user ya está restaurado, userVistas calcula bien
     const tieneAcceso = auth.userVistas.includes(to.meta.vista)
     if (!tieneAcceso) return next('/')

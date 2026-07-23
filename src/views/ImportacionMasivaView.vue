@@ -289,9 +289,21 @@ function onFileChange(e) {
 
 function mapearSinValidar(rows) {
   datosValidados = rows.map((fila, i) => {
-    const sueldo = safe(fila.salario_mensual).replace(/[^\d.]/g, '') // solo números y punto decimal
-    const salarioMensual = sueldo ? parseFloat(sueldo) : null
-    const modoSueldo = salarioMensual && salarioMensual > 0 ? 'salario' : 'tabulador'
+    const sueldoRaw = safe(fila.salario_mensual).replace(/[^\d.]/g, '')
+    // 👇 NUEVO -- lo capturado es quincenal, mensual = quincenal × 2
+    const salarioMensual = sueldoRaw ? parseFloat(sueldoRaw) * 2 : null
+
+    // 👇 NUEVO -- columna 'modo' decide explícito si viene; si no, cae
+    // al comportamiento de siempre (salario solo si trae sueldo capturado)
+    const modoRaw = safe(fila.modo).toUpperCase()
+    let modoSueldo
+    if (modoRaw.includes('SALARIO')) {
+      modoSueldo = 'salario'
+    } else if (modoRaw.includes('TABULADOR')) {
+      modoSueldo = 'tabulador'
+    } else {
+      modoSueldo = salarioMensual && salarioMensual > 0 ? 'salario' : 'tabulador'
+    }
 
     return {
       _row:                i + 2,
@@ -500,7 +512,8 @@ function validarFrontend(rows) {
     const id_periodicidad = safe(fila.id_periodicidad || fila.Periodicidad)
 
     // 👇 NUEVO -- salario_mensual: header exacto 'salario_mensual'
-    const sueldoRaw = safe(fila.salario_mensual).replace(/[^\d.]/g, '')
+    const sueldoRaw = safe(fila.salario_mensual || fila.Salario).replace(/[^\d.]/g, '')
+
     const salarioMensual = sueldoRaw ? parseFloat(sueldoRaw) : null
     const modoSueldo = salarioMensual && salarioMensual > 0 ? 'salario' : 'tabulador'
 

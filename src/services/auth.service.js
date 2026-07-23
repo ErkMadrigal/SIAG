@@ -6,7 +6,8 @@ const SLUG_A_VISTAS = {
   'incidencias':  ['incidencias'],
   'asistencias':  ['biometrico', 'registros'],
   'biometrico':   ['biometrico', 'registros'],
-  'reportes': ['prenomina', 'altas_bajas', 'cargar_nomina', 'nomina_workflow', 'revisar_nomina', 'dispersar_nomina'],
+  'reportes': ['prenomina', 'altas_bajas', 'cargar_nomina', 'nomina_workflow', 'revisar_nomina', 'dispersar_nomina', 'fatiga_buscador'],
+
   'usuarios':     ['usuarios'],
   'empresas':     ['catalogos', 'hospitales'],
   'catalogos':    ['catalogos'],

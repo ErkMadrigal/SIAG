@@ -1,3 +1,21 @@
+<!--
+  NominaFatigaWorkflowView.vue
+
+  Tu vista de "Flujo de nómina" (Cargar → Revisar/Aprobar → Dispersar),
+  con selección masiva agregada en la columna "Por revisar": antes había
+  que aprobar/rechazar una por una con los botones de cada tarjeta -- con
+  un chingo de nóminas por cancelar eso es una tortura. Ahora cada
+  tarjeta trae un checkbox, aparece una barra de acciones masivas cuando
+  hay algo seleccionado, y un solo modal de confirmación dispara
+  Aprobar/Cancelar sobre todas las seleccionadas (reutiliza los mismos
+  endpoints /aprobar y /rechazar que ya usabas uno por uno, nada más en
+  loop -- ver ejecutarMasivo()).
+
+  OJO: para "Aprobar" asumí que el endpoint es
+  POST /nomina-fatiga/{id}/aprobar (mismo patrón que tu /rechazar, que sí
+  confirmé porque ya lo tenías funcionando). Si tu endpoint real de
+  aprobar se llama distinto, dime y cambio esa sola línea.
+-->
 <template>
   <div class="workflow-view">
     <div class="view-header">
@@ -33,13 +51,42 @@
             <i class="ti ti-clipboard-check"></i>
             <span>Por revisar</span>
             <span class="kanban-count">{{ porRevisar.length }}</span>
+            <label v-if="porRevisar.length" class="kanban-select-all">
+              <input type="checkbox" :checked="todosSeleccionados" @change="toggleSeleccionarTodos" />
+              Todos
+            </label>
           </div>
+
+          <!-- Barra de acciones masivas -- solo aparece con algo seleccionado -->
+          <div v-if="hayAlgunaSeleccionada" class="kanban-bulk-bar">
+            <span class="kbb-count">{{ seleccionados.size }} seleccionada{{ seleccionados.size === 1 ? '' : 's' }}</span>
+            <div class="kanban-bulk-actions">
+              <button class="btn-sm btn-sm--grn" @click="abrirMasivo('aprobar')">
+                <i class="ti ti-check" aria-hidden="true"></i> Aprobar
+              </button>
+              <button class="btn-sm btn-sm--red" @click="abrirMasivo('rechazar')">
+                <i class="ti ti-x" aria-hidden="true"></i> Cancelar
+              </button>
+              <button class="btn-sm" @click="limpiarSeleccion">Deseleccionar</button>
+            </div>
+          </div>
+
           <div class="kanban-col-body">
             <p v-if="porRevisar.length === 0" class="kanban-empty">No hay nóminas pendientes</p>
-            <div v-for="n in porRevisar" :key="n.id" class="lote-card">
-              <div class="lote-card-top" @click="idSeleccionado = n.id">
-                <p class="lc-nombre">{{ n.nombre }}</p>
-                <p class="lc-periodo">{{ n.periodo_inicio }} → {{ n.periodo_fin }}</p>
+            <div
+              v-for="n in porRevisar"
+              :key="n.id"
+              class="lote-card"
+              :class="{ 'lote-card--seleccionada': seleccionados.has(n.id) }"
+            >
+              <div class="lote-card-top">
+                <label class="lote-checkbox" @click.stop title="Seleccionar para acción masiva">
+                  <input type="checkbox" :checked="seleccionados.has(n.id)" @change="toggleSeleccion(n.id)" />
+                </label>
+                <div class="lote-card-toptext" @click="idSeleccionado = n.id">
+                  <p class="lc-nombre">{{ n.nombre }}</p>
+                  <p class="lc-periodo">{{ n.periodo_inicio }} → {{ n.periodo_fin }}</p>
+                </div>
               </div>
               <div class="lote-card-cargas" v-if="n.cargas?.length">
                 <span v-for="c in n.cargas" :key="c.id" class="lote-badge" :class="'lote-badge--'+c.estatus">
@@ -154,6 +201,7 @@
     />
   </div>
 
+  <!-- Modal de rechazo individual (como ya lo tenías) -->
   <Teleport to="body">
     <div v-if="loteARechazar" class="modal-overlay" @click.self="loteARechazar = null">
       <div class="confirm-modal confirm-modal--danger">
@@ -173,6 +221,62 @@
           <button class="cm-btn cm-btn--ghost" @click="loteARechazar = null" :disabled="rechazando">Cancelar</button>
           <button class="cm-btn cm-btn--danger" @click="ejecutarRechazo" :disabled="rechazando">
             {{ rechazando ? 'Rechazando...' : 'Sí, rechazar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Modal de acción masiva -- Aprobar/Cancelar sobre todas las
+       seleccionadas de "Por revisar". Reutiliza los mismos endpoints
+       individuales en loop (ver ejecutarMasivo) y muestra progreso. -->
+  <Teleport to="body">
+    <div v-if="accionMasiva" class="modal-overlay" @click.self="!procesandoMasivo && cerrarModalMasivo()">
+      <div class="confirm-modal" :class="{ 'confirm-modal--danger': accionMasiva === 'rechazar' }">
+        <div class="cm-icon" :class="{ 'cm-icon--ok': accionMasiva === 'aprobar' }">
+          <i :class="accionMasiva === 'aprobar' ? 'ti ti-circle-check' : 'ti ti-alert-triangle'"></i>
+        </div>
+        <p class="cm-title">
+          {{ accionMasiva === 'aprobar' ? 'Aprobar nóminas seleccionadas' : 'Rechazar nóminas seleccionadas' }}
+        </p>
+        <p class="cm-sub">
+          Vas a {{ accionMasiva === 'aprobar' ? 'aprobar' : 'rechazar' }}
+          <strong>{{ seleccionados.size }}</strong> nómina{{ seleccionados.size === 1 ? '' : 's' }}.
+          Esta acción no se puede deshacer.
+        </p>
+
+        <textarea
+          v-if="accionMasiva === 'rechazar'"
+          v-model="motivoRechazoMasivo"
+          placeholder="Motivo del rechazo (opcional, aplica a todas)..."
+          class="cm-textarea"
+          rows="3"
+          :disabled="procesandoMasivo"
+        ></textarea>
+
+        <div v-if="procesandoMasivo" class="masivo-progreso">
+          <div class="chunk-bar-wrap">
+            <div class="chunk-bar"><div class="chunk-fill" :style="{ width: pctMasivo + '%' }"></div></div>
+            <span class="chunk-pct">{{ progresoMasivo.hecho }}/{{ progresoMasivo.total }}</span>
+          </div>
+        </div>
+
+        <div v-if="!procesandoMasivo && erroresMasivo.length" class="alert-warn" style="text-align:left">
+          <i class="ti ti-alert-circle"></i>
+          No se pudo con: {{ erroresMasivo.join(', ') }}
+        </div>
+
+        <div class="cm-actions">
+          <button class="cm-btn cm-btn--ghost" @click="cerrarModalMasivo" :disabled="procesandoMasivo">
+            {{ erroresMasivo.length ? 'Cerrar' : 'Cancelar' }}
+          </button>
+          <button
+            class="cm-btn"
+            :class="accionMasiva === 'rechazar' ? 'cm-btn--danger' : 'cm-btn--ok'"
+            @click="ejecutarMasivo"
+            :disabled="procesandoMasivo"
+          >
+            {{ procesandoMasivo ? 'Procesando...' : (erroresMasivo.length ? 'Reintentar' : ('Sí, ' + (accionMasiva === 'aprobar' ? 'aprobar' : 'rechazar'))) }}
           </button>
         </div>
       </div>
@@ -228,6 +332,98 @@ async function ejecutarRechazo() {
     console.error('Error rechazando:', err)
   } finally {
     rechazando.value = false
+  }
+}
+
+/* ── Selección masiva -- "Por revisar" ───────────────────────────
+   Antes había que aprobar/rechazar una por una. Con esto se marcan
+   varias con checkbox y se disparan en lote. */
+const seleccionados = ref(new Set())
+const hayAlgunaSeleccionada = computed(() => seleccionados.value.size > 0)
+const todosSeleccionados = computed(() =>
+  porRevisar.value.length > 0 && porRevisar.value.every(n => seleccionados.value.has(n.id))
+)
+
+function toggleSeleccion(id) {
+  const s = new Set(seleccionados.value)
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+  seleccionados.value = s
+}
+function toggleSeleccionarTodos() {
+  seleccionados.value = todosSeleccionados.value
+    ? new Set()
+    : new Set(porRevisar.value.map(n => n.id))
+}
+function limpiarSeleccion() {
+  seleccionados.value = new Set()
+}
+
+const accionMasiva      = ref(null) // 'aprobar' | 'rechazar' | null
+const motivoRechazoMasivo = ref('')
+const procesandoMasivo  = ref(false)
+const progresoMasivo    = ref({ hecho: 0, total: 0 })
+const erroresMasivo     = ref([])
+
+const pctMasivo = computed(() =>
+  progresoMasivo.value.total ? Math.round((progresoMasivo.value.hecho / progresoMasivo.value.total) * 100) : 0
+)
+
+function abrirMasivo(accion) {
+  accionMasiva.value = accion
+  motivoRechazoMasivo.value = ''
+  erroresMasivo.value = []
+  progresoMasivo.value = { hecho: 0, total: 0 }
+}
+function cerrarModalMasivo() {
+  accionMasiva.value = null
+  erroresMasivo.value = []
+}
+
+async function ejecutarMasivo() {
+  if (!accionMasiva.value) return
+  const ids = Array.from(seleccionados.value)
+  if (!ids.length) return
+
+  procesandoMasivo.value = true
+  progresoMasivo.value = { hecho: 0, total: ids.length }
+  const erroresNuevos = []
+
+  // Uno por uno (no en paralelo) para no saturar al backend y para poder
+  // mostrar el progreso real -- igual que el loop de cálculo por chunks
+  // en la carga de plantilla.
+  for (const id of ids) {
+    try {
+      if (accionMasiva.value === 'aprobar') {
+        // OJO: no tengo confirmado el nombre exacto de este endpoint --
+        // asumí el mismo patrón que /rechazar (que sí es real). Si tu
+        // ruta de aprobar es distinta, ajusta esta línea.
+        await api.post(`/nomina-fatiga/${id}/aprobar`)
+      } else {
+        await api.post(`/nomina-fatiga/${id}/rechazar`, { comentario: motivoRechazoMasivo.value })
+      }
+    } catch (err) {
+      const nom = nominas.value.find(n => n.id === id)
+      erroresNuevos.push(nom?.nombre || `#${id}`)
+      console.error(`[workflow] error en ${accionMasiva.value} masivo, id ${id}:`, err?.response?.data || err)
+    } finally {
+      progresoMasivo.value.hecho++
+    }
+  }
+
+  erroresMasivo.value = erroresNuevos
+  procesandoMasivo.value = false
+  await cargarNominas()
+
+  if (erroresNuevos.length === 0) {
+    // todo salió bien -- limpia selección y cierra el modal solo
+    limpiarSeleccion()
+    accionMasiva.value = null
+  } else {
+    // deja el modal abierto mostrando cuáles fallaron; las que sí
+    // salieron bien ya no están en "Por revisar" así que la selección
+    // se autolimpia sola en el siguiente toggle
+    limpiarSeleccion()
   }
 }
 
@@ -300,8 +496,26 @@ onMounted(cargarNominas)
   margin-left:auto; background:var(--bg3); color:var(--tx2);
   font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px;
 }
+.kanban-select-all {
+  display:flex; align-items:center; gap:5px;
+  font-size:11px; color:var(--tx2); cursor:pointer; font-weight:500;
+}
+.kanban-select-all input { width:14px; height:14px; cursor:pointer; accent-color:var(--acc); }
 .kanban-col-body { padding:12px; display:flex; flex-direction:column; gap:10px; }
 .kanban-empty { text-align:center; color:var(--tx2); font-size:12px; padding:16px 0; }
+
+/* Barra de acciones masivas */
+.kanban-bulk-bar {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:9px 14px; background:var(--acc-dim); border-bottom:0.5px solid var(--acc);
+  flex-wrap:wrap;
+}
+.kbb-count { font-size:12px; font-weight:600; color:var(--acc); }
+.kanban-bulk-actions { display:flex; gap:6px; flex-wrap:wrap; }
+.btn-sm--grn { border-color:var(--grn); color:var(--grn); }
+.btn-sm--grn:hover { background:rgba(34,201,122,.14); }
+.btn-sm--red { border-color:var(--red); color:var(--red); }
+.btn-sm--red:hover { background:var(--red-dim); }
 
 .sec-dispersadas { background:var(--bg1); border:0.5px solid var(--bdr); border-radius:12px; overflow:hidden; }
 .sec-dispersadas-hdr {
@@ -342,8 +556,12 @@ onMounted(cargarNominas)
 }
 .lote-card:hover { border-color:var(--acc); box-shadow:0 4px 16px rgba(0,0,0,.25); transform:translateY(-1px); }
 .lote-card--aprobada { border-left:3px solid var(--grn); }
+.lote-card--seleccionada { border-color:var(--acc); box-shadow:0 0 0 1px var(--acc); }
 
-.lote-card-top { padding:14px 14px 6px; }
+.lote-card-top { padding:14px 14px 6px; display:flex; align-items:flex-start; gap:10px; }
+.lote-card-toptext { flex:1; min-width:0; cursor:pointer; }
+.lote-checkbox { display:flex; align-items:center; padding-top:2px; cursor:pointer; flex-shrink:0; }
+.lote-checkbox input { width:16px; height:16px; cursor:pointer; accent-color:var(--acc); }
 .lc-nombre { font-size:13.5px; font-weight:600; color:var(--tx0); }
 .lc-periodo { font-size:11px; color:var(--tx2); margin-top:3px; }
 
@@ -378,4 +596,24 @@ onMounted(cargarNominas)
 .lc-btn--add:hover { background:var(--acc-dim); color:var(--acc); border-color:var(--acc); }
 .lc-btn--ver:hover { background:var(--bg3); color:var(--tx0); }
 .lc-btn--rechazar:hover { background:var(--red-dim); color:var(--red); border-color:var(--red); }
+
+/* ── Modal de acción masiva ──────────────────────────────────────
+   .confirm-modal / .cm-* ya existen globalmente en tu app (los usa el
+   modal de rechazo individual). Nada más agrego el color "ok" para el
+   ícono y el botón cuando la acción es Aprobar, y la barra de progreso
+   (reusa .chunk-bar-wrap/.chunk-bar/.chunk-fill/.chunk-pct que ya tienes
+   en la vista de cargar plantilla -- si esas clases viven ahí y no son
+   globales, cópialas a tu CSS global o dime y te las mando aparte). */
+.cm-icon--ok { color:var(--grn); }
+.cm-btn--ok { background:var(--grn); border-color:var(--grn); color:#fff; }
+.cm-btn--ok:hover:not(:disabled) { opacity:.9; }
+.masivo-progreso { width:100%; }
+.chunk-bar-wrap { display:flex; align-items:center; gap:8px; width:100%; }
+.chunk-bar { flex:1; height:6px; background:var(--bg3); border-radius:6px; overflow:hidden; }
+.chunk-fill {
+  height:100%; border-radius:6px;
+  background:linear-gradient(90deg, var(--acc), var(--acc2, var(--acc)));
+  transition:width .3s ease;
+}
+.chunk-pct { font-size:11px; color:var(--acc); font-weight:600; min-width:36px; text-align:right; }
 </style>

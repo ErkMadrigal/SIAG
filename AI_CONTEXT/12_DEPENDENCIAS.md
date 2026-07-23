@@ -1,0 +1,6 @@
+- @vueuse/core: ^14.3.0
+- axios: ^1.16.0
+- pinia: ^3.0.4
+- vue: ^3.5.32
+- vue-router: ^4.6.4
+- xlsx: ^0.18.5
