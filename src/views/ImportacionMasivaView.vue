@@ -1,3 +1,21 @@
+<!--
+  Cambios sobre tu versión (altas_issste):
+
+  1. lote_id -- se genera un UUID en el navegador (crypto.randomUUID())
+     la primera vez que le das "Enviar" en una sesión, y se manda igual
+     en cada archivo de ese envío. El backend lo guarda en cada fila
+     insertada (columna lote_importacion).
+
+  2. Al terminar de subir todos los archivos aparecen 2 botones:
+     "Confirmar y cerrar" -> POST altas-xlsx/confirmar (solo deja
+     constancia en auditoría, no borra nada).
+     "No, deshacer todo" -> POST altas-xlsx/rollback (DELETE físico
+     de SOLO las filas de ese lote_id -- no toca ninguna otra carga).
+
+  3. Después de confirmar/deshacer, se resetea loteIdActual para que
+     la siguiente tanda de archivos (si suben otra) arranque con un
+     lote nuevo.
+-->
 <template>
   <div class="masiva-view">
 
@@ -37,110 +55,265 @@
     </div>
 
     <template v-else>
-      <!-- Drop zone -->
-      <div class="sec">
-        <div
-          class="dropzone"
-          :class="{ 'drag-over': dragOver, 'has-file': archivo, 'has-error': errores.length > 0, 'has-success': archivo && errores.length === 0 && validado }"
-          @dragover.prevent="dragOver = true"
-          @dragleave="dragOver = false"
-          @drop.prevent="onDrop"
-          @click="fileInputRef?.click()"
-        >
-          <template v-if="!archivo">
-            <div class="dz-icon">
-              <i class="ti ti-cloud-upload" aria-hidden="true"></i>
+
+      <!-- ═══ NUEVO -- multi-archivo para altas_issste ═══ -->
+      <template v-if="esAltasMultiple">
+        <div class="sec">
+          <div
+            class="dropzone"
+            :class="{ 'drag-over': dragOver }"
+            @dragover.prevent="dragOver = true"
+            @dragleave="dragOver = false"
+            @drop.prevent="onDropAltas"
+            @click="fileInputAltasRef?.click()"
+          >
+            <div class="dz-icon"><i class="ti ti-cloud-upload" aria-hidden="true"></i></div>
+            <p class="dz-title">Suelta aquí varios Excel de Altas o haz clic para elegirlos</p>
+            <p class="dz-hint">Puedes seleccionar/soltar varios a la vez -- se procesan uno por uno</p>
+          </div>
+          <input
+            ref="fileInputAltasRef"
+            type="file"
+            accept=".xlsx,.xls,.xlsm"
+            multiple
+            style="display:none"
+            @change="onFileChangeAltas"
+          />
+
+          <div v-if="archivosAltas.length" class="table-wrap" style="padding:0 16px 16px">
+            <table>
+              <thead>
+                <tr>
+                  <th>Archivo</th>
+                  <th style="width:100px">Tamaño</th>
+                  <th style="width:44px"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(f, i) in archivosAltas" :key="i">
+                  <td>{{ f.name }}</td>
+                  <td class="mono" style="font-size:11px">{{ formatSize(f.size) }}</td>
+                  <td style="text-align:center">
+                    <button class="file-remove" style="margin:0" @click="quitarArchivoAltas(i)" :disabled="uploading">
+                      <i class="ti ti-x"></i>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="campos-altas">
+            <div class="field-mini" style="flex:1; min-width:220px">
+              <label>¿Quién te mandó estos archivos? <span class="opcional">(temporal, se borra después)</span></label>
+              <input v-model="origenCarga" type="text" placeholder="Ej. Raimundo" class="input-clave" />
             </div>
-            <p class="dz-title">Suelta el archivo aquí o haz clic para cargarlo</p>
-            <p class="dz-hint">Acepta archivos .xlsx · .xls</p>
-          </template>
-          <template v-else>
-            <div class="file-info">
-              <div class="file-icon">
-                <i class="ti ti-file-spreadsheet" aria-hidden="true"></i>
-              </div>
-              <div>
-                <p class="file-name">{{ archivo.name }}</p>
-                <p class="file-size">{{ formatSize(archivo.size) }} · {{ filas.length }} filas detectadas</p>
-              </div>
-              <button class="file-remove" @click.stop="resetTodo">
-                <i class="ti ti-x"></i>
-              </button>
+            <div class="field-mini" style="width:140px">
+              <label>id_cliente</label>
+              <input v-model.number="idClienteCarga" type="number" class="input-clave" />
             </div>
-          </template>
+            <div class="field-mini" style="min-width:260px">
+              <label>El sueldo que traen estos archivos es...</label>
+              <div class="toggle-sueldo">
+                <button
+                  type="button"
+                  :class="{ active: duplicarSueldo }"
+                  :disabled="uploading"
+                  @click="duplicarSueldo = true"
+                >
+                  Quincenal <span class="toggle-sub">(se multiplica x2)</span>
+                </button>
+                <button
+                  type="button"
+                  :class="{ active: !duplicarSueldo }"
+                  :disabled="uploading"
+                  @click="duplicarSueldo = false"
+                >
+                  Mensual <span class="toggle-sub">(tal cual)</span>
+                </button>
+              </div>
+              <p class="dz-hint" style="margin-top:4px">
+                Aplica a cualquier columna que traigan (SUELDO, SUELDO QUINCENAL o SUELDO MENSUAL, sin importar mayúsculas/minúsculas).
+              </p>
+            </div>
+          </div>
         </div>
-        <input ref="fileInputRef" type="file" accept=".xlsx,.xls,.xlsm" style="display:none" @change="onFileChange" />
-      </div>
 
-      <!-- Banner éxito validación -->
-      <div v-if="archivo && validado && errores.length === 0" class="banner-success">
-        <i class="ti ti-circle-check" aria-hidden="true"></i>
-        <div>
-          <p style="font-weight:500">Plantilla válida — {{ filas.length }} registros listos para procesar</p>
-          <p style="font-size:11px;opacity:.8">Sin errores detectados. Puedes enviar o solo validar contra el servidor.</p>
+        <!-- Progreso (compartido con el flujo normal) -->
+        <div v-if="uploading" class="progreso-wrap">
+          <div class="progreso-info">
+            <i class="ti ti-loader-2 spin" aria-hidden="true"></i>
+            <span>{{ progresoTexto }}</span>
+            <span class="progreso-pct">{{ progresoPct }}%</span>
+          </div>
+          <div class="progreso-bar">
+            <div class="progreso-fill" :style="{ width: progresoPct + '%' }"></div>
+          </div>
         </div>
-      </div>
 
-      <!-- Progreso upload -->
-      <div v-if="uploading" class="progreso-wrap">
-        <div class="progreso-info">
-          <i class="ti ti-loader-2 spin" aria-hidden="true"></i>
-          <span>{{ progresoTexto }}</span>
-          <span class="progreso-pct">{{ progresoPct }}%</span>
-        </div>
-        <div class="progreso-bar">
-          <div class="progreso-fill" :style="{ width: progresoPct + '%' }"></div>
-        </div>
-      </div>
-
-      <!-- Acciones -->
-      <div v-if="archivo" class="acciones">
-        <button class="btn-sm" @click="resetTodo" :disabled="uploading">
-          <i class="ti ti-eraser" aria-hidden="true"></i> Resetear
-        </button>
-        <button v-if="tipo !== 'nuevos_directo'" class="btn-sm" :disabled="!validado || errores.length > 0 || uploading" @click="enviar(true)">
-          <i class="ti ti-check" aria-hidden="true"></i> Solo validar
-        </button>
-        <button class="btn-primary-lg" :disabled="!validado || errores.length > 0 || uploading" @click="enviar(false)">
-          <i class="ti ti-loader-2 spin" v-if="uploading" aria-hidden="true"></i>
-          <i class="ti ti-send" v-else aria-hidden="true"></i>
-          {{ uploading ? progresoTexto : 'Enviar' }}
-        </button>
-      </div>
-
-      <!-- Tabla de errores -->
-      <div v-if="errores.length > 0" class="sec">
-        <div class="sec-hdr error">
-          <i class="ti ti-alert-triangle" aria-hidden="true"></i>
-          <span>La plantilla tiene errores</span>
-          <span class="error-count">{{ errores.length }} errores</span>
-          <button class="btn-sm" style="margin-left:auto" @click="exportarErrores">
-            <i class="ti ti-download" aria-hidden="true"></i> Exportar errores
+        <div v-if="archivosAltas.length" class="acciones">
+          <button class="btn-sm" @click="limpiarListaAltas" :disabled="uploading">
+            <i class="ti ti-eraser" aria-hidden="true"></i> Limpiar lista
+          </button>
+          <button class="btn-primary-lg" :disabled="uploading || !origenCarga.trim()" @click="enviarAltasDirecta">
+            <i class="ti ti-loader-2 spin" v-if="uploading" aria-hidden="true"></i>
+            <i class="ti ti-send" v-else aria-hidden="true"></i>
+            {{ uploading ? progresoTexto : `Enviar ${archivosAltas.length} archivo(s)` }}
           </button>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th style="width:80px">Fila</th>
-                <th>Error detectado</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(e, i) in errores" :key="i">
-                <td class="mono" style="color:var(--red)">{{ e.fila }}</td>
-                <td style="color:var(--tx1)">{{ e.mensaje }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <p v-if="archivosAltas.length && !origenCarga.trim()" class="dz-hint" style="text-align:right; color:var(--amb)">
+          Falta indicar quién mandó el archivo para poder enviar.
+        </p>
 
-      <!-- Resultado del servidor -->
+        <!-- NUEVO -- decisión de cierre del lote: confirmar o deshacer todo -->
+        <div v-if="resultado && loteIdActual && !loteEstado" class="sec lote-decision">
+          <div class="sec-hdr">
+            <i class="ti ti-help-circle" aria-hidden="true"></i>
+            <span>¿Se queda este lote así? (lote {{ loteIdActual.slice(0, 8) }}…)</span>
+          </div>
+          <p class="dz-hint" style="padding: 0 16px 12px;">
+            Ya se insertaron {{ resultado.insertados }} empleados en la base. Si confirmas, se quedan tal cual.
+            Si dices que no, se borran (físico) SOLO los de este lote -- no toca ninguna otra carga.
+          </p>
+          <div class="acciones" style="padding: 0 16px 16px;">
+            <button class="btn-sm btn-danger" :disabled="!!loteProcesando" @click="deshacerLoteAccion">
+              <i class="ti ti-loader-2 spin" v-if="loteProcesando === 'rollback'" aria-hidden="true"></i>
+              <i class="ti ti-trash" v-else aria-hidden="true"></i>
+              No, deshacer todo
+            </button>
+            <button class="btn-primary-lg" :disabled="!!loteProcesando" @click="confirmarLoteAccion">
+              <i class="ti ti-loader-2 spin" v-if="loteProcesando === 'confirmar'" aria-hidden="true"></i>
+              <i class="ti ti-check" v-else aria-hidden="true"></i>
+              Confirmar y cerrar
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="loteEstado === 'confirmado'" class="banner-success">
+          <i class="ti ti-circle-check" aria-hidden="true"></i>
+          <div>
+            <p style="font-weight:500">Lote confirmado — los datos quedan definitivos.</p>
+          </div>
+        </div>
+
+        <div v-else-if="loteEstado === 'rollback'" class="banner-success banner-danger">
+          <i class="ti ti-trash" aria-hidden="true"></i>
+          <div>
+            <p style="font-weight:500">Lote deshecho — se borraron los registros de esa sesión.</p>
+          </div>
+        </div>
+      </template>
+
+      <!-- ═══ Flujo normal (sin cambios) -- todos los demás tipos ═══ -->
+      <template v-else>
+        <!-- Drop zone -->
+        <div class="sec">
+          <div
+            class="dropzone"
+            :class="{ 'drag-over': dragOver, 'has-file': archivo, 'has-error': errores.length > 0, 'has-success': archivo && errores.length === 0 && validado }"
+            @dragover.prevent="dragOver = true"
+            @dragleave="dragOver = false"
+            @drop.prevent="onDrop"
+            @click="fileInputRef?.click()"
+          >
+            <template v-if="!archivo">
+              <div class="dz-icon">
+                <i class="ti ti-cloud-upload" aria-hidden="true"></i>
+              </div>
+              <p class="dz-title">Suelta el archivo aquí o haz clic para cargarlo</p>
+              <p class="dz-hint">Acepta archivos .xlsx · .xls</p>
+            </template>
+            <template v-else>
+              <div class="file-info">
+                <div class="file-icon">
+                  <i class="ti ti-file-spreadsheet" aria-hidden="true"></i>
+                </div>
+                <div>
+                  <p class="file-name">{{ archivo.name }}</p>
+                  <p class="file-size">{{ formatSize(archivo.size) }} · {{ filas.length }} filas detectadas</p>
+                </div>
+                <button class="file-remove" @click.stop="resetTodo">
+                  <i class="ti ti-x"></i>
+                </button>
+              </div>
+            </template>
+          </div>
+          <input ref="fileInputRef" type="file" accept=".xlsx,.xls,.xlsm" style="display:none" @change="onFileChange" />
+        </div>
+
+        <!-- Banner éxito validación -->
+        <div v-if="archivo && validado && errores.length === 0" class="banner-success">
+          <i class="ti ti-circle-check" aria-hidden="true"></i>
+          <div>
+            <p style="font-weight:500">Plantilla válida — {{ filas.length }} registros listos para procesar</p>
+            <p style="font-size:11px;opacity:.8">Sin errores detectados. Puedes enviar o solo validar contra el servidor.</p>
+          </div>
+        </div>
+
+        <!-- Progreso upload -->
+        <div v-if="uploading" class="progreso-wrap">
+          <div class="progreso-info">
+            <i class="ti ti-loader-2 spin" aria-hidden="true"></i>
+            <span>{{ progresoTexto }}</span>
+            <span class="progreso-pct">{{ progresoPct }}%</span>
+          </div>
+          <div class="progreso-bar">
+            <div class="progreso-fill" :style="{ width: progresoPct + '%' }"></div>
+          </div>
+        </div>
+
+        <!-- Acciones -->
+        <div v-if="archivo" class="acciones">
+          <button class="btn-sm" @click="resetTodo" :disabled="uploading">
+            <i class="ti ti-eraser" aria-hidden="true"></i> Resetear
+          </button>
+          <button v-if="tipo !== 'nuevos_directo'" class="btn-sm" :disabled="!validado || errores.length > 0 || uploading" @click="enviar(true)">
+            <i class="ti ti-check" aria-hidden="true"></i> Solo validar
+          </button>
+          <button class="btn-primary-lg" :disabled="!validado || errores.length > 0 || uploading" @click="enviar(false)">
+            <i class="ti ti-loader-2 spin" v-if="uploading" aria-hidden="true"></i>
+            <i class="ti ti-send" v-else aria-hidden="true"></i>
+            {{ uploading ? progresoTexto : 'Enviar' }}
+          </button>
+        </div>
+
+        <!-- Tabla de errores -->
+        <div v-if="errores.length > 0" class="sec">
+          <div class="sec-hdr error">
+            <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+            <span>La plantilla tiene errores</span>
+            <span class="error-count">{{ errores.length }} errores</span>
+            <button class="btn-sm" style="margin-left:auto" @click="exportarErrores">
+              <i class="ti ti-download" aria-hidden="true"></i> Exportar errores
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:80px">Fila</th>
+                  <th>Error detectado</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(e, i) in errores" :key="i">
+                  <td class="mono" style="color:var(--red)">{{ e.fila }}</td>
+                  <td style="color:var(--tx1)">{{ e.mensaje }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </template>
+
+      <!-- Resultado del servidor -- compartido por ambos flujos -->
       <div v-if="resultado" class="sec">
         <div class="sec-hdr" :class="resultado.ok ? 'success' : 'error'">
           <i :class="['ti', resultado.ok ? 'ti-circle-check' : 'ti-alert-triangle']" aria-hidden="true"></i>
           <span>{{ resultado.validateOnly ? 'Resultado de validación' : 'Resultado de carga masiva' }}</span>
+          <button v-if="resultado.erroresDetalle?.length" class="btn-sm" style="margin-left:auto" @click="exportarErrores">
+            <i class="ti ti-download" aria-hidden="true"></i> Exportar errores
+          </button>
         </div>
         <div class="resultado-stats">
           <div class="rstat blue">
@@ -164,12 +337,14 @@
           <table>
             <thead>
               <tr>
+                <th v-if="mostrarColArchivo" style="width:180px">Archivo</th>
                 <th style="width:80px">Fila</th>
                 <th>Error del servidor</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(e, i) in resultado.erroresDetalle" :key="i">
+                <td v-if="mostrarColArchivo" style="color:var(--tx2);font-size:11px">{{ e.archivo }}</td>
                 <td class="mono" style="color:var(--red)">{{ e.fila }}</td>
                 <td style="color:var(--tx1)">{{ e.mensaje }}</td>
               </tr>
@@ -246,12 +421,23 @@ const CONFIGS = {
     endpoint:    '/empleados/actualizar-masivo-dinamico',
     action:      'empleado_actualizar_dinamico',
   },
+  // NUEVO -- lee la hoja "Altas" de varios .xlsx e inserta directo, sin
+  // cruzar contra lo que ya existe (para el caso de ISSSTE que no se
+  // sabe quién de lo viejo ya estaba). El backend hace toda la lectura
+  // (PhpSpreadsheet) -- este tipo NO pasa por el parseo cliente de abajo.
+  altas_issste: {
+    titulo:      'Altas masivas (multi-archivo)',
+    descripcion: 'Sube varios Excel de "Altas" (mismo formato que tus plantillas de nómina) -- se insertan directo, sin cruzar contra lo que ya existe. Pensado para cargas de 50-100 filas por archivo.',
+    endpoint:    '/importacion-masiva/altas-xlsx',
+    action:      'altas_issste_masivo',
+  },
 }
 
 
 
 const tipo   = computed(() => route.query.tipo || 'nuevos')
 const config = computed(() => CONFIGS[tipo.value] || CONFIGS.nuevos)
+const esAltasMultiple = computed(() => tipo.value === 'altas_issste') // NUEVO
 
 // ── Candado ──────────────────────────────────────────
 const desbloqueado   = ref(false)
@@ -285,6 +471,207 @@ function onFileChange(e) {
   const file = e.target.files?.[0]
   if (file) procesarArchivo(file)
   e.target.value = ''
+}
+
+/* ── NUEVO -- multi-archivo para altas_issste ─────────────────────────
+   No se parsea nada en el cliente -- solo se juntan los File tal cual,
+   el backend hace toda la lectura del Excel. */
+const fileInputAltasRef = ref(null)
+const archivosAltas     = ref([])
+const origenCarga       = ref('')
+const idClienteCarga    = ref(100)
+
+// NUEVO -- true = el sueldo capturado es quincenal (se multiplica x2 para
+// sacar salario_mensual). false = ya viene mensual, se usa tal cual.
+// Default true para no cambiar el comportamiento que ya tenías.
+const duplicarSueldo = ref(true)
+
+// NUEVO -- id de la sesión de envío actual, y estado de la decisión final.
+const loteIdActual  = ref(null)          // string uuid | null
+const loteEstado    = ref(null)          // null | 'confirmado' | 'rollback'
+const loteProcesando = ref(null)         // null | 'confirmar' | 'rollback'
+
+function onDropAltas(e) {
+  dragOver.value = false
+  const nuevos = Array.from(e.dataTransfer.files || []).filter((f) => /\.(xlsx|xls|xlsm)$/i.test(f.name))
+  archivosAltas.value.push(...nuevos)
+}
+function onFileChangeAltas(e) {
+  const nuevos = Array.from(e.target.files || [])
+  archivosAltas.value.push(...nuevos)
+  e.target.value = ''
+}
+function quitarArchivoAltas(i) {
+  archivosAltas.value.splice(i, 1)
+}
+
+// NUEVO -- limpiar lista también arranca un lote nuevo (si ya habías
+// enviado antes) y borra el resultado/decisión anterior de pantalla.
+function limpiarListaAltas() {
+  archivosAltas.value = []
+  resultado.value     = null
+  loteIdActual.value  = null
+  loteEstado.value    = null
+}
+
+function generarUuid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  // Fallback por si el navegador no trae crypto.randomUUID (contextos no-https viejos)
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
+}
+
+async function enviarAltasDirecta() {
+  if (!archivosAltas.value.length || !origenCarga.value.trim()) return
+
+  // Un lote nuevo por sesión de envío -- si ya hay uno pendiente de
+  // confirmar/deshacer no debería llegar aquí (el botón de enviar ya
+  // no se ve una vez que sale la decisión), pero por seguridad solo
+  // genera uno si no hay ya uno activo.
+  if (!loteIdActual.value) loteIdActual.value = generarUuid()
+  loteEstado.value = null
+
+  uploading.value    = true
+  progresoPct.value  = 0
+  resultado.value    = null
+  erroresUltimos     = []
+
+  const token = localStorage.getItem('access_token')
+
+  let totalAcum = 0
+  let insertadosAcum = 0
+  let erroresAcum = 0
+  let detalleAcum = []
+  let huboErrorFatal = false
+
+  for (let i = 0; i < archivosAltas.value.length; i++) {
+    const file = archivosAltas.value[i]
+    progresoTexto.value = `Procesando ${file.name} (${i + 1} de ${archivosAltas.value.length})...`
+    progresoPct.value   = Math.round((i / archivosAltas.value.length) * 100)
+
+    const formData = new FormData()
+    formData.append('archivo', file)
+    formData.append('origen', origenCarga.value.trim())
+    formData.append('id_cliente', idClienteCarga.value || 100)
+    formData.append('lote_id', loteIdActual.value) // NUEVO
+    formData.append('duplicar_sueldo', duplicarSueldo.value ? '1' : '0') // NUEVO
+
+    try {
+      const res = await fetch(`${API_BASE}${config.value.endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Import-Key': claveGuardada.value,
+        },
+        body: formData,
+      })
+
+      if (res.status === 403) throw new Error('CLAVE_INCORRECTA')
+
+      let json = {}
+      try { json = await res.json() } catch {}
+
+      if (!res.ok) throw new Error(json?.message || `HTTP ${res.status}`)
+
+      totalAcum      += json.total      ?? 0
+      insertadosAcum += json.insertados ?? 0
+      erroresAcum    += json.errores    ?? 0
+
+      detalleAcum = detalleAcum.concat((json.detalle || []).map((d) => ({
+        archivo: d.archivo || file.name,
+        fila:    d.fila ?? '—',
+        mensaje: d.mensaje ?? 'Error',
+      })))
+    } catch (err) {
+      if (err.message === 'CLAVE_INCORRECTA') {
+        errorClave.value = 'Clave de acceso incorrecta'
+        desbloqueado.value = false
+        claveIngresada.value = ''
+        uploading.value = false
+        return
+      }
+      huboErrorFatal = true
+      erroresAcum += 1
+      detalleAcum.push({ archivo: file.name, fila: '—', mensaje: `El archivo completo falló: ${err.message}` })
+    }
+  }
+
+  progresoPct.value   = 100
+  progresoTexto.value = 'Completado'
+
+  resultado.value = {
+    ok:             !huboErrorFatal,
+    validateOnly:   false,
+    total:          totalAcum,
+    insertados:     insertadosAcum,
+    duplicados:     0,
+    errores:        erroresAcum,
+    erroresDetalle: detalleAcum,
+  }
+
+  erroresUltimos = detalleAcum
+  uploading.value = false
+}
+
+// NUEVO -- botón "Confirmar y cerrar": no borra nada, solo deja
+// constancia en auditoría de que el usuario revisó y se queda con el lote.
+async function confirmarLoteAccion() {
+  if (!loteIdActual.value || loteProcesando.value) return
+  loteProcesando.value = 'confirmar'
+  const token = localStorage.getItem('access_token')
+
+  try {
+    const res = await fetch(`${API_BASE}/importacion-masiva/altas-xlsx/confirmar`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Import-Key': claveGuardada.value,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ lote_id: loteIdActual.value }),
+    })
+    let json = {}
+    try { json = await res.json() } catch {}
+    if (!res.ok) throw new Error(json?.message || `HTTP ${res.status}`)
+
+    loteEstado.value = 'confirmado'
+  } catch (err) {
+    alert('No se pudo confirmar el lote: ' + err.message)
+  } finally {
+    loteProcesando.value = null
+  }
+}
+
+// NUEVO -- botón "No, deshacer todo": borra (físico) SOLO las filas
+// de empleados que pertenecen a este lote_id.
+async function deshacerLoteAccion() {
+  if (!loteIdActual.value || loteProcesando.value) return
+
+  const n = resultado.value?.insertados ?? 0
+  if (!confirm(`¿Seguro? Esto va a BORRAR (físico) los ${n} empleados que se acaban de insertar en esta sesión. No se puede deshacer.`)) return
+
+  loteProcesando.value = 'rollback'
+  const token = localStorage.getItem('access_token')
+
+  try {
+    const res = await fetch(`${API_BASE}/importacion-masiva/altas-xlsx/rollback`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Import-Key': claveGuardada.value,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ lote_id: loteIdActual.value }),
+    })
+    let json = {}
+    try { json = await res.json() } catch {}
+    if (!res.ok) throw new Error(json?.message || `HTTP ${res.status}`)
+
+    loteEstado.value = 'rollback'
+  } catch (err) {
+    alert('No se pudo deshacer el lote: ' + err.message)
+  } finally {
+    loteProcesando.value = null
+  }
 }
 
 function mapearSinValidar(rows) {
@@ -716,7 +1103,7 @@ async function enviar(validateOnly = false) {
             console.warn('No se pudo registrar el historial:', e)
           }
         }
-        
+
         uploading.value = false
         return
       }
@@ -778,15 +1165,23 @@ function xhrSimple(url, body, token) {
   })
 }
 
-// ── Exportar errores ─────────────────────────────────
+// ── Exportar errores -- ahora incluye columna Archivo si aplica ──────
 function exportarErrores() {
   if (!erroresUltimos.length) return
-  const rows = [['Fila', 'Error'], ...erroresUltimos.map(e => [e.fila, e.mensaje])]
+  const tieneArchivo = erroresUltimos.some((e) => e.archivo)
+  const header = tieneArchivo ? ['Archivo', 'Fila', 'Error'] : ['Fila', 'Error']
+  const rows = [header, ...erroresUltimos.map((e) =>
+    tieneArchivo ? [e.archivo || '', e.fila, e.mensaje] : [e.fila, e.mensaje]
+  )]
   const wb   = XLSX.utils.book_new()
   const ws   = XLSX.utils.aoa_to_sheet(rows)
   XLSX.utils.book_append_sheet(wb, ws, 'ERRORES')
   XLSX.writeFile(wb, `errores_${tipo.value}_${new Date().toISOString().slice(0,10)}.xlsx`)
 }
+
+// NUEVO -- para saber si la tabla de resultado.erroresDetalle debe
+// mostrar la columna Archivo (solo aplica al tipo altas_issste).
+const mostrarColArchivo = computed(() => resultado.value?.erroresDetalle?.some((e) => e.archivo))
 
 // ── Reset ────────────────────────────────────────────
 function resetTodo() {
@@ -804,14 +1199,14 @@ function resetTodo() {
 // ── Helpers ──────────────────────────────────────────
 function norm(s) {
   return String(s ?? '').trim().toUpperCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ')
+    .normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '').replace(/\s+/g, ' ')
 }
 function safe(v) { return String(v ?? '').trim() }
 
 // Normaliza texto: quita acentos, colapsa espacios, mayúsculas (para servicios/ubicaciones)
 function normalizarTexto(s) {
   return String(s ?? '').trim()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '')
     .replace(/\s+/g, ' ')
     .toUpperCase()
 }
@@ -915,6 +1310,13 @@ function formatSize(bytes) {
 }
 .banner-success i { font-size: 22px; flex-shrink: 0; }
 
+/* NUEVO -- variante roja del banner, para el resultado de rollback */
+.banner-danger {
+  background: var(--red-dim) !important;
+  border-color: var(--red) !important;
+  color: var(--red) !important;
+}
+
 /* Progreso */
 .progreso-wrap {
   background: var(--bg1); border: 0.5px solid var(--bdr);
@@ -989,6 +1391,11 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .btn-sm:hover:not(:disabled) { background: var(--bg3); color: var(--tx0); }
 .btn-sm:disabled { opacity: .4; cursor: not-allowed; }
+
+/* NUEVO -- variante roja para "deshacer todo" */
+.btn-danger { border-color: var(--red); color: var(--red); }
+.btn-danger:hover:not(:disabled) { background: var(--red-dim); }
+
 .btn-primary-lg {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 20px; border-radius: 8px; border: none;
@@ -1013,4 +1420,29 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .input-clave:focus { border-color: var(--acc); }
 .candado-sec { padding-bottom: 8px; }
+
+/* NUEVO -- campos de la carga de altas multi-archivo */
+.campos-altas {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  padding: 14px 16px; border-top: 0.5px solid var(--bdr);
+}
+.field-mini { display: flex; flex-direction: column; gap: 6px; }
+.field-mini label { font-size: 12px; font-weight: 500; color: var(--tx1); }
+.field-mini .opcional { font-weight: 400; color: var(--tx3); font-size: 11px; }
+
+/* NUEVO -- toggle quincenal/mensual para el sueldo */
+.toggle-sueldo {
+  display: flex; border: 0.5px solid var(--bdr2); border-radius: 8px;
+  overflow: hidden;
+}
+.toggle-sueldo button {
+  flex: 1; padding: 8px 10px; border: none; background: var(--bg2);
+  color: var(--tx2); font-size: 12px; font-family: inherit; cursor: pointer;
+  transition: all .15s; line-height: 1.3;
+}
+.toggle-sueldo button + button { border-left: 0.5px solid var(--bdr2); }
+.toggle-sueldo button.active { background: var(--acc); color: #fff; font-weight: 500; }
+.toggle-sueldo button:hover:not(.active):not(:disabled) { background: var(--bg3); color: var(--tx0); }
+.toggle-sueldo button:disabled { opacity: .5; cursor: not-allowed; }
+.toggle-sub { display: block; font-size: 10px; opacity: .8; font-weight: 400; }
 </style>

@@ -5,14 +5,16 @@
      GET /biometrico/registros/exportar-xlsx (ver exportarXlsx_biometrico.php
      aparte) mandando los filtros actuales como query params.
 
-  2. Dos selects nuevos -- Servicio y Cliente -- llenados desde tus
-     catálogos ya existentes (/catalogos/servicios/select y
-     /catalogos/clientes). OJO: como no toqué registrosBiometrico() (no
-     la tenías a la mano), estos dos filtros SOLO afectan lo que se
-     exporta, no la tabla en pantalla -- lo dejé bien marcado con un
-     texto chiquito abajo del todo para que no genere confusión. Si más
-     adelante me pasas registrosBiometrico() los conecto también a la
-     tabla.
+  2. Tres selects nuevos -- Servicio, Cliente y Zona -- llenados desde
+     tus catálogos ya existentes (/catalogos/servicios/select,
+     /catalogos/clientes, /catalogos/zonas). Ahora SÍ afectan también la
+     tabla en pantalla (no solo el export) -- se mandan a fetchData()
+     junto con search/date_from/date_to, y del lado del backend
+     registrosBiometrico() (IncidenciaModel) y registros()
+     (BiometricoController) ya los soportan -- ver
+     registrosBiometrico_ACTUALIZADO.php y registros_controller_ACTUALIZADO.php
+     aparte, pégalos ANTES de probar esto o los filtros van a fallar
+     silenciosamente (el backend los ignoraría).
 
   3. Ajusté el import de `api` -- lo necesito para las llamadas nuevas
      (catálogos + export). Si tu proyecto expone eso distinto a
@@ -64,15 +66,14 @@
           <input type="date" v-model="filtros.date_to" />
         </div>
 
-        <!-- NUEVO -- solo aplican al exportar, ver nota arriba -->
-        <select class="sel" v-model="filtros.servicio_id">
-          <option :value="null">Todos los servicios</option>
-          <option v-for="s in serviciosList" :key="s.id" :value="s.id">{{ s.nombre }}</option>
-        </select>
-
         <select class="sel" v-model="filtros.cliente_id">
           <option :value="null">Todos los clientes</option>
           <option v-for="c in clientesList" :key="c.id" :value="c.id">{{ c.nombre }}</option>
+        </select>
+
+        <select class="sel" v-model="filtros.zona_id">
+          <option :value="null">Todas las zonas</option>
+          <option v-for="z in zonasList" :key="z.id" :value="z.id">{{ z.nombre }}</option>
         </select>
 
         <select class="sel" v-model="filtros.pageSize" @change="aplicarFiltros">
@@ -88,7 +89,7 @@
       </div>
       <p class="filtros-hint">
         <i class="ti ti-info-circle" aria-hidden="true"></i>
-        Servicio y Cliente aplican solo al exportar a Excel -- la tabla de abajo usa Buscar/Desde/Hasta.
+        Servicio, Cliente y Zona necesitan que le des clic a "Aplicar" -- igual que Buscar/Desde/Hasta.
       </p>
       <p v-if="errorExport" class="filtros-hint filtros-hint--error">
         <i class="ti ti-alert-circle" aria-hidden="true"></i> {{ errorExport }}
@@ -248,29 +249,22 @@ const filtros = reactive({
   date_from:   '',
   date_to:     '',
   pageSize:    25,
-  servicio_id: null, // NUEVO -- solo se usa al exportar (ver nota arriba)
-  cliente_id:  null, // NUEVO -- solo se usa al exportar
+  cliente_id:  null, // NUEVO -- afecta tabla y export
+  zona_id:     null, // NUEVO -- afecta tabla y export
 })
 
-// NUEVO -- catálogos para los selects de Servicio/Cliente del export.
-// El shape exacto de /catalogos/servicios/select y /catalogos/clientes
-// no lo tenía confirmado, así que el mapeo de abajo prueba varios
-// nombres de campo comunes (servicio/nombre/nombre_corto/valor). Si el
-// select sale con las etiquetas vacías, dime qué trae la respuesta real
-// y ajusto el mapeo en una línea.
-const serviciosList = ref([])
+// NUEVO -- catálogos para los selects de Cliente/Zona del export.
+// El shape exacto de /catalogos/clientes y /catalogos/zonas no lo tenía
+// confirmado, así que el mapeo de abajo prueba varios nombres de campo
+// comunes (nombre/nombre_corto/valor). Si el select sale con las
+// etiquetas vacías, dime qué trae la respuesta real y ajusto el mapeo en
+// una línea.
+// -- Servicio se quitó a propósito (el filtro por servicio individual ya
+// no se usa, se queda solo Cliente y Zona, que agrupan varios servicios).
 const clientesList  = ref([])
+const zonasList     = ref([]) // NUEVO
 
 async function cargarCatalogosExport() {
-  try {
-    const { data: dataServ } = await api.get('/catalogos/servicios/select')
-    serviciosList.value = (dataServ.data || dataServ || []).map((s) => ({
-      id: s.id,
-      nombre: s.servicio ?? s.nombre ?? s.valor ?? `#${s.id}`,
-    }))
-  } catch (err) {
-    console.error('Error cargando catálogo de servicios:', err)
-  }
   try {
     const { data: dataCli } = await api.get('/catalogos/clientes')
     clientesList.value = (dataCli.data || dataCli || []).map((c) => ({
@@ -279,6 +273,15 @@ async function cargarCatalogosExport() {
     }))
   } catch (err) {
     console.error('Error cargando catálogo de clientes:', err)
+  }
+  try {
+    const { data: dataZon } = await api.get('/catalogos/zonas')
+    zonasList.value = (dataZon.data || dataZon || []).map((z) => ({
+      id: z.id,
+      nombre: z.zona ?? z.nombre ?? z.valor ?? `#${z.id}`,
+    }))
+  } catch (err) {
+    console.error('Error cargando catálogo de zonas:', err)
   }
 }
 
@@ -303,11 +306,13 @@ async function fetchData() {
   loading.value = true
   try {
     const res = await biometricoService.getRegistros({
-      search:    filtros.search,
-      date_from: filtros.date_from,
-      date_to:   filtros.date_to,
-      page:      page.value,
-      pageSize:  filtros.pageSize,
+      search:      filtros.search,
+      date_from:   filtros.date_from,
+      date_to:     filtros.date_to,
+      page:        page.value,
+      pageSize:    filtros.pageSize,
+      cliente_id:  filtros.cliente_id  || undefined, // NUEVO
+      zona_id:     filtros.zona_id     || undefined, // NUEVO
     })
 
     registros.value   = res.data  || []
@@ -369,8 +374,8 @@ function getAvatarBg(i)    { return AVATAR_COLORS[i % AVATAR_COLORS.length].bg }
 function getAvatarColor(i) { return AVATAR_COLORS[i % AVATAR_COLORS.length].color }
 
 /* ── Exportar a Excel ─────────────────────────────────────────────
-   Manda los filtros actuales (search/date_from/date_to/servicio_id/
-   cliente_id) tal cual al backend -- si no hay ninguno puesto, exporta
+   Manda los filtros actuales (search/date_from/date_to/cliente_id/
+   zona_id) tal cual al backend -- si no hay ninguno puesto, exporta
    completo. Mismo patrón de descarga de blob que ya usas en
    NominaDetalleModal. */
 const exportando  = ref(false)
@@ -384,8 +389,8 @@ async function exportarExcel() {
     if (filtros.search)      params.search      = filtros.search
     if (filtros.date_from)   params.date_from   = filtros.date_from
     if (filtros.date_to)     params.date_to     = filtros.date_to
-    if (filtros.servicio_id) params.servicio_id = filtros.servicio_id
     if (filtros.cliente_id)  params.cliente_id  = filtros.cliente_id
+    if (filtros.zona_id)     params.zona_id     = filtros.zona_id
 
     const response = await api.get('/biometrico/registros/exportar-xlsx', {
       params,

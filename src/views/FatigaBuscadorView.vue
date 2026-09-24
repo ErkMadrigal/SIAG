@@ -215,8 +215,24 @@
         <div v-if="errorXlsm" class="alert-warn">
           <i class="ti ti-alert-circle" aria-hidden="true"></i> {{ errorXlsm }}
         </div>
-        <div v-if="resumenCarga" class="alert-ok">
-          <i class="ti ti-circle-check" aria-hidden="true"></i> {{ resumenCarga }}
+
+        <!-- Resumen por archivo -- una línea por archivo con espacio real
+             entre cada uno, en vez del párrafo corrido de antes que se
+             volvía ilegible con 3+ archivos juntos. -->
+        <div v-if="archivosResumen.length" class="resumen-cargas">
+          <div class="resumen-cargas-hdr">
+            <i class="ti ti-circle-check" aria-hidden="true"></i>
+            {{ archivosResumen.length }} archivo{{ archivosResumen.length === 1 ? '' : 's' }} procesado{{ archivosResumen.length === 1 ? '' : 's' }}
+          </div>
+          <div class="resumen-carga-item" v-for="r in archivosResumen" :key="r.nombre">
+            <span class="rc-nombre" :title="r.nombre">{{ r.nombre }}</span>
+            <span class="rc-pills">
+              <span class="rc-pill rc-pill--ok">{{ r.agregados }} empleado{{ r.agregados === 1 ? '' : 's' }}</span>
+              <span v-if="r.bajas" class="rc-pill rc-pill--baja">{{ r.bajas }} baja{{ r.bajas === 1 ? '' : 's' }}</span>
+              <span v-if="r.omitidosPorLote" class="rc-pill rc-pill--warn">{{ r.omitidosPorLote }} ya en el lote</span>
+              <span v-if="r.omitidosDuplicados" class="rc-pill rc-pill--warn">{{ r.omitidosDuplicados }} repetido(s) entre archivos</span>
+            </span>
+          </div>
         </div>
 
         <div class="agregar-grid">
@@ -270,9 +286,12 @@
             </div>
           </div>
 
-          <!-- Cargar Excel -->
+          <!-- Cargar Excel -- ahora acepta VARIOS a la vez (multiple),
+               se procesan uno por uno y todos terminan en la MISMA
+               cuadrícula, cada fila marcada con de qué archivo vino
+               (ver origenArchivo / .badge-archivo más abajo). -->
           <div class="field">
-            <label>O carga un Excel (.xlsm/.xlsx)</label>
+            <label>O carga uno o varios Excel (.xlsm/.xlsx)</label>
             <div
               class="mini-dropzone"
               :class="{ 'is-dragging': isDragging, cargando: cargandoXlsm }"
@@ -281,14 +300,29 @@
               @drop.prevent="onDrop"
               @click="!cargandoXlsm && inputFile.click()"
             >
-              <input ref="inputFile" type="file" accept=".xlsx,.xls,.xlsm" class="hidden-input" @change="onFileSelected" />
+              <input ref="inputFile" type="file" accept=".xlsx,.xls,.xlsm" multiple class="hidden-input" @change="onFileSelected" />
               <template v-if="cargandoXlsm">
-                <i class="ti ti-loader-2 spin" aria-hidden="true"></i> Leyendo archivo...
+                <i class="ti ti-loader-2 spin" aria-hidden="true"></i>
+                Leyendo {{ archivoActualNombre }}{{ archivosOriginales.length > 1 || archivosEnCola > 0 ? ` (${archivosProcesados} de ${archivosProcesados + archivosEnCola})` : '' }}...
               </template>
               <template v-else>
                 <i class="ti ti-cloud-upload" aria-hidden="true"></i>
-                Arrastra o haz clic para cargar el Excel de fatiga
+                Arrastra o haz clic para cargar uno o varios Excel de fatiga
               </template>
+            </div>
+
+            <!-- Chips de los archivos ya cargados -- para saber de un
+                 vistazo cuáles ya están adentro y poder quitar uno sin
+                 perder los demás. -->
+            <div v-if="archivosOriginales.length" class="archivos-chip-list">
+              <span v-for="a in archivosOriginales" :key="a.name + a.size" class="archivo-chip">
+                <i class="ti ti-file-spreadsheet" aria-hidden="true"></i>
+                {{ a.name }}
+                <span class="archivo-chip-count">{{ contarFilasDeArchivo(a.name) }}</span>
+                <button type="button" title="Quitar este archivo y sus filas" @click.stop="quitarArchivo(a)">
+                  <i class="ti ti-x" aria-hidden="true"></i>
+                </button>
+              </span>
             </div>
           </div>
         </div>
@@ -297,7 +331,7 @@
     </div>
 
     <!-- ════════════ Captura -- Asistencia / Altas / Bajas en pestañas ════════════ -->
-    <div class="sec" v-if="empleados.length || altasCargadas.length || bajasCargadas.length">
+    <div class="sec" v-if="empleados.length || altasCargadas.length || bajasCargadas.length || noCargados.length">
       <div class="sec-hdr">
         <i class="ti ti-table" aria-hidden="true"></i>
         <span>Captura</span>
@@ -310,6 +344,14 @@
           </button>
           <button class="tab-btn" :class="{ active: tabActiva === 'bajas' }" @click="tabActiva = 'bajas'">
             Bajas <span class="tab-count">{{ bajasCargadas.length }}</span>
+          </button>
+          <button
+            v-if="noCargados.length"
+            class="tab-btn tab-btn--warn"
+            :class="{ active: tabActiva === 'nocargados' }"
+            @click="tabActiva = 'nocargados'"
+          >
+            No cargados <span class="tab-count">{{ noCargados.length }}</span>
           </button>
         </div>
       </div>
@@ -343,7 +385,12 @@
                         <i class="ti ti-pencil" aria-hidden="true"></i>
                       </button>
                     </td>
-                    <td style="font-weight:500">{{ a.nombre }} {{ a.paterno }} {{ a.materno }}</td>
+                    <td style="font-weight:500">
+                      {{ a.nombre }} {{ a.paterno }} {{ a.materno }}
+                      <div v-if="a.origenArchivo" class="badge-archivo" :title="a.origenArchivo">
+                        <i class="ti ti-file-spreadsheet" aria-hidden="true"></i> {{ a.origenArchivo }}
+                      </div>
+                    </td>
                     <td class="mono" style="font-size:11px">{{ a.curp }}</td>
                     <td style="color:var(--tx2, #8a92a6);font-size:11px">{{ a._texto_turno || '—' }}</td>
                     <td style="color:var(--tx2, #8a92a6);font-size:11px">{{ a._texto_puesto || '—' }}</td>
@@ -509,7 +556,12 @@
               </thead>
               <tbody>
                 <tr v-for="(b, idx) in bajasCargadas" :key="idx">
-                  <td><input v-model="b.nombre" class="input-inline" style="width:100%" /></td>
+                  <td>
+                    <input v-model="b.nombre" class="input-inline" style="width:100%" />
+                    <div v-if="b.origenArchivo" class="badge-archivo" :title="b.origenArchivo">
+                      <i class="ti ti-file-spreadsheet" aria-hidden="true"></i> {{ b.origenArchivo }}
+                    </div>
+                  </td>
                   <td><input v-model.number="b.numero_empleado" type="number" class="input-inline" /></td>
                   <td><input v-model="b.fecha_efectiva" type="date" class="input-inline" /></td>
                   <td><input v-model="b.motivo_baja" class="input-inline" style="width:100%" /></td>
@@ -520,6 +572,59 @@
           <div v-else class="empty-state">
             <i class="ti ti-user-off" aria-hidden="true"></i>
             <p>Sin bajas detectadas -- carga un Excel con hoja "Bajas" para verlas aquí</p>
+          </div>
+        </template>
+
+        <!-- ── Pestaña: No cargados -- filas que llegaron pero se
+             omitieron (duplicado en la tanda o ya en el lote), con el
+             motivo, y un botón para exportarlas al mismo formato de la
+             plantilla para corregir y volver a cargar. ── -->
+        <template v-else-if="tabActiva === 'nocargados'">
+          <p class="claves-txt">
+            Estas filas llegaron en algún archivo pero NO se agregaron a la cuadrícula de Asistencia -- revisa el motivo de cada una.
+          </p>
+          <div class="filtros-actions" style="margin-bottom:10px">
+            <span></span>
+            <button class="btn-sm" @click="exportarNoCargadosXlsx">
+              <i class="ti ti-download" aria-hidden="true"></i> Exportar a xlsx (mismo formato de la plantilla)
+            </button>
+          </div>
+          <div class="table-wrap" v-if="noCargados.length">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:36px"></th>
+                  <th style="min-width:220px">Nombre</th>
+                  <th style="width:110px">Fila(s) Excel</th>
+                  <th style="width:100px">ID Empleado</th>
+                  <th style="min-width:150px">Servicio</th>
+                  <th style="min-width:180px">Archivo de origen</th>
+                  <th>Motivo</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(n, idx) in noCargados" :key="idx" class="row-clickeable" @click="verDetalleNoCargado(n)">
+                  <td style="text-align:center">
+                    <button class="btn-icon" title="Ver detalle" @click.stop="verDetalleNoCargado(n)">
+                      <i class="ti ti-eye" aria-hidden="true"></i>
+                    </button>
+                  </td>
+                  <td style="font-weight:500">{{ n.nombre }} {{ n.paterno }} {{ n.materno }}</td>
+                  <td class="mono">
+                    <span v-if="n.filas?.length">{{ n.filas.join(', ') }}</span>
+                    <span v-else style="color:var(--tx3, #5b6274)">—</span>
+                  </td>
+                  <td class="mono">{{ n.id_empleado || '—' }}</td>
+                  <td>{{ n.servicio || '—' }}</td>
+                  <td style="font-size:11px;color:var(--tx2, #8a92a6)">{{ n.origenArchivo }}</td>
+                  <td><span class="rc-pill rc-pill--warn">{{ n.motivo }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-else class="empty-state">
+            <i class="ti ti-user-off" aria-hidden="true"></i>
+            <p>Nada que mostrar aquí</p>
           </div>
         </template>
 
@@ -538,6 +643,12 @@
               <i class="ti ti-x" aria-hidden="true"></i>
             </button>
           </div>
+          <!-- NUEVO -- solo aparece si hay más de un archivo cargado --
+               filtra la cuadrícula para ver nada más los de tal archivo. -->
+          <select v-if="archivosUnicos.length > 1" v-model="filtroArchivo" class="select-archivo-filtro">
+            <option value="">Todos los archivos</option>
+            <option v-for="nombre in archivosUnicos" :key="nombre" :value="nombre">{{ nombre }}</option>
+          </select>
           <span class="tabla-toolbar-count">
             {{ empleadosFiltrados.length }} de {{ empleados.length }} empleado{{ empleados.length === 1 ? '' : 's' }}
           </span>
@@ -567,6 +678,11 @@
                     <span class="mono" style="color:var(--tx2, #8a92a6);font-size:10px">{{ emp.id_empleado || '—' }}</span>
                     — {{ emp.nombre }} {{ emp.paterno }} {{ emp.materno }}
                     <div v-if="emp.curp" class="mono" style="font-size:10px;color:var(--tx3, #5b6274)">{{ emp.curp }}</div>
+                    <!-- NUEVO -- de qué archivo vino esta fila (o "agregado a mano" si fue por búsqueda) -->
+                    <div class="badge-archivo" :title="emp.origenArchivo || 'Agregado por búsqueda, no vino de un archivo'">
+                      <i class="ti ti-file-spreadsheet" aria-hidden="true"></i>
+                      {{ emp.origenArchivo || 'agregado a mano' }}
+                    </div>
                   </td>
                   <td>
                     <input type="text" v-model="emp.servicio" class="input-comentario" placeholder="Sin especificar" />
@@ -711,6 +827,7 @@
         <div v-if="calculando" class="calculo-progreso">
           <div class="calculo-progreso-txt">
             <i class="ti ti-loader-2 spin" aria-hidden="true"></i>
+            <template v-if="archivoGuardandoTotal > 1">Archivo {{ archivoGuardandoIdx }} de {{ archivoGuardandoTotal }} — </template>
             Calculando {{ chunkProcesadas }} de {{ chunkTotal }} empleados...
           </div>
           <div class="chunk-bar-wrap">
@@ -818,12 +935,66 @@
       </div>
     </Teleport>
 
+    <!-- ════════════ MODAL — Detalle de "No cargados" ════════════ -->
+    <Teleport to="body">
+      <div v-if="mostrarModalNoCargado" class="modal-overlay" @click.self="cerrarModalNoCargado">
+        <div class="modal-box">
+          <div class="modal-hdr">
+            <div class="modal-icon" style="background:var(--amb-dim, rgba(245,166,35,.14)); color:var(--amb, #f5a623)">
+              <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+            </div>
+            <div>
+              <p class="modal-title">{{ detalleNoCargadoActual?.nombre || '(sin nombre)' }}</p>
+              <p class="modal-sub">{{ detalleNoCargadoActual?.origenArchivo }}</p>
+            </div>
+            <button class="modal-close" @click="cerrarModalNoCargado"><i class="ti ti-x" aria-hidden="true"></i></button>
+          </div>
+
+          <div class="modal-body-content">
+            <div class="field">
+              <label>Fila(s) en el Excel donde aparece este nombre</label>
+              <div class="filas-chips">
+                <span v-for="f in (detalleNoCargadoActual?.filas || [])" :key="f" class="fila-chip">
+                  <i class="ti ti-table-row" aria-hidden="true"></i> Fila {{ f }}
+                </span>
+                <span v-if="!detalleNoCargadoActual?.filas?.length" class="claves-txt">
+                  No se pudo determinar la fila exacta para este caso.
+                </span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Motivo</label>
+              <p style="font-size:13px; color:var(--tx1, #c7cede); line-height:1.5; margin:0">
+                {{ detalleNoCargadoActual?.motivo }}
+              </p>
+            </div>
+
+            <div class="field" v-if="detalleNoCargadoActual?.servicio || detalleNoCargadoActual?.id_empleado">
+              <label>Otros datos capturados en esa fila</label>
+              <p style="font-size:12px; color:var(--tx2, #8a92a6); margin:0">
+                <template v-if="detalleNoCargadoActual?.id_empleado">ID_Empleado: {{ detalleNoCargadoActual.id_empleado }} · </template>
+                <template v-if="detalleNoCargadoActual?.servicio">Servicio: {{ detalleNoCargadoActual.servicio }}</template>
+              </p>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn-primary-lg" @click="cerrarModalNoCargado">
+              <i class="ti ti-check" aria-hidden="true"></i> Entendido
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
+import * as XLSX from 'xlsx' // solo para exportar "No cargados" -- ver exportarNoCargadosXlsx()
 import api from '@/services/api.js'
 // El mismo servicio que ya usa tu vista de "Cargar plantilla de nómina"
 // (la que sí calcula) -- procesarXlsm() crea el lote/altas/bajas, y
@@ -1034,6 +1205,15 @@ function formatoMoneda(v) {
 const altasCargadas = ref([])
 const bajasCargadas = ref([])
 
+// NUEVO -- filas de Asistencia que llegaron en algún archivo pero NO se
+// agregaron a la cuadrícula, con el motivo. Hoy los dos motivos posibles
+// son "duplicado en la misma tanda" (dos archivos traían al mismo
+// empleado) y "ya estaba en el lote existente" -- si tu backend de
+// preview-xlsm algún día empieza a regresar sus propias filas
+// rechazadas (ej. fila sin CURP, fecha inválida, etc.) dime el nombre
+// exacto del campo en la respuesta y lo engancho aquí también.
+const noCargados = ref([]) // [{ origenArchivo, motivo, nombre, id_empleado, servicio, id_servicio, dias, adicional, otros_descuentos, comentarios }]
+
 /* ── Lista de empleados en captura ───────────────────────────── */
 let contadorKey = 0
 const empleados = ref([])
@@ -1072,6 +1252,37 @@ function nuevaFilaVacia(base = {}) {
     dias,
     esNuevo: base.esNuevo ?? !base.id_empleado,
     editando: false,
+    // NUEVO -- de qué archivo xlsm salió esta fila (null si se agregó
+    // por búsqueda a mano). Sirve para mostrar/filtrar "esta fila es de
+    // tal archivo" cuando se cargan varios xlsm juntos.
+    origenArchivo: base.origenArchivo || null,
+  }
+}
+
+// Arma una entrada para noCargados a partir de la fila cruda que vino del
+// backend (antes de nuevaFilaVacia) -- OJO: aquí `dias` se deja tal cual
+// vino, con llave = número REAL del día (28, 29, 30, 1, 2...), no
+// posicional -- así el export a xlsx puede escribir cada valor bajo la
+// columna del día correcto sin tener que traducir nada.
+function filaNoCargada(base, origenArchivo, motivo) {
+  return {
+    origenArchivo,
+    motivo,
+    // NUEVO -- número(s) de fila real del Excel donde está esta persona.
+    // Viene de _fila_excel que ahora manda el backend en cada fila de
+    // Asistencia -- si por lo que sea no viene, queda arreglo vacío y el
+    // modal avisa que no se pudo determinar la fila exacta.
+    filas: base._fila_excel ? [base._fila_excel] : [],
+    id_empleado: base.id_empleado ?? base.id ?? null,
+    nombre: base.nombre || '',
+    paterno: base.apellido_paterno || base.paterno || '',
+    materno: base.apellido_materno || base.materno || '',
+    servicio: base.servicio || base._texto_servicio || '',
+    id_servicio: base.id_servicio ?? null,
+    adicional: Number(base.adicional || 0),
+    otros_descuentos: Number(base.otros_descuentos || 0),
+    comentarios: base.comentarios || '',
+    dias: base.dias || {},
   }
 }
 
@@ -1112,10 +1323,20 @@ function quitarEmpleado(emp) {
    1000 filas cargadas de un Excel grande. Filtra sobre lo que ya está
    en memoria, no pega al backend. ────────────────────────────────── */
 const filtroTabla = ref('')
+
+// NUEVO -- filtro por archivo de origen (solo visible si hay >1 archivo
+// cargado). Lista de nombres únicos de archivo entre las filas actuales.
+const filtroArchivo = ref('')
+const archivosUnicos = computed(() => {
+  const set = new Set(empleados.value.map((e) => e.origenArchivo).filter(Boolean))
+  return Array.from(set)
+})
+
 const empleadosFiltrados = computed(() => {
   const q = filtroTabla.value.trim().toLowerCase()
-  if (!q) return empleados.value
   return empleados.value.filter((emp) => {
+    if (filtroArchivo.value && emp.origenArchivo !== filtroArchivo.value) return false
+    if (!q) return true
     const nombreCompleto = `${emp.nombre} ${emp.paterno} ${emp.materno}`.toLowerCase()
     const curp = String(emp.curp || '').toLowerCase()
     const idEmp = String(emp.id_empleado ?? '')
@@ -1126,13 +1347,29 @@ const empleadosFiltrados = computed(() => {
 function limpiarTodo() {
   empleados.value = []
   filtroTabla.value = ''
+  filtroArchivo.value = ''
   errorXlsm.value = ''
   errorGuardar.value = ''
-  resumenCarga.value = ''
   diasColumnas.value = []
-  archivoOriginal.value = null
+  archivosOriginales.value = []
+  archivosResumen.value = []
   altasCargadas.value = []
   bajasCargadas.value = []
+  noCargados.value = []
+}
+
+/* ── NUEVO -- modal de detalle para una fila de "No cargados" (ver
+   nombre + fila(s) exactas del Excel donde aparece + motivo) ────── */
+const mostrarModalNoCargado = ref(false)
+const detalleNoCargadoActual = ref(null)
+
+function verDetalleNoCargado(item) {
+  detalleNoCargadoActual.value = item
+  mostrarModalNoCargado.value = true
+}
+function cerrarModalNoCargado() {
+  mostrarModalNoCargado.value = false
+  detalleNoCargadoActual.value = null
 }
 
 /* ── Rellenar patrón -- evita llenar día por día a mano ─────────── */
@@ -1201,9 +1438,18 @@ function claveClass(valor) {
 const isDragging = ref(false)
 const cargandoXlsm = ref(false)
 const errorXlsm = ref('')
-const resumenCarga = ref('')
 const inputFile = ref(null)
-const archivoOriginal = ref(null)
+
+// NUEVO -- ahora puede haber VARIOS archivos cargados a la vez (antes
+// era un solo File en archivoOriginal). Cada uno queda en esta lista, y
+// cada fila de empleados/altas/bajas que salió de él se marca con
+// `origenArchivo = archivo.name` (ver nuevaFilaVacia y procesarArchivoXlsm)
+// -- así en la tabla se puede ver "esta fila es de tal archivo/tal wey".
+const archivosOriginales = ref([])   // File[]
+const archivosResumen = ref([])      // [{ nombre, agregados, bajas, omitidosPorLote, omitidosDuplicados }]
+const archivoActualNombre = ref('')  // nombre del que se está leyendo AHORA (para el texto de "Leyendo...")
+const archivosProcesados = ref(0)
+const archivosEnCola = ref(0)
 
 /* ── Resultado de guardar y calcular -- reemplaza el alert() nativo ── */
 const procesoExitoso = ref(false)
@@ -1213,12 +1459,56 @@ const nombreNominaGuardada = ref('')
 
 function onDrop(e) {
   isDragging.value = false
-  const archivo = e.dataTransfer?.files?.[0]
-  if (archivo) procesarArchivoXlsm(archivo)
+  const archivos = Array.from(e.dataTransfer?.files || [])
+  if (archivos.length) procesarVariosArchivos(archivos)
 }
 function onFileSelected(e) {
-  const archivo = e.target.files?.[0]
-  if (archivo) procesarArchivoXlsm(archivo)
+  const archivos = Array.from(e.target.files || [])
+  if (archivos.length) procesarVariosArchivos(archivos)
+  e.target.value = ''
+}
+
+// Punto de entrada para 1 o varios archivos -- valida extensiones de
+// una vez y luego los procesa EN ORDEN, uno por uno (no en paralelo,
+// para no saturar al backend con varios xlsm grandes a la vez y para
+// que el resumen/errores por archivo salgan en orden legible).
+async function procesarVariosArchivos(archivos) {
+  const validos = archivos.filter((a) => /\.(xlsx|xls|xlsm)$/i.test(a.name))
+  const invalidos = archivos.length - validos.length
+  if (!validos.length) {
+    errorXlsm.value = 'Ninguno de los archivos es .xlsx, .xls o .xlsm'
+    return
+  }
+  if (invalidos) {
+    errorXlsm.value = `${invalidos} archivo(s) ignorado(s) por no ser .xlsx/.xls/.xlsm`
+  }
+
+  archivosEnCola.value = validos.length
+  archivosProcesados.value = 0
+  for (const archivo of validos) {
+    archivoActualNombre.value = archivo.name
+    await procesarArchivoXlsm(archivo)
+    archivosProcesados.value++
+    archivosEnCola.value--
+  }
+}
+
+// Cuántas filas de la cuadrícula de Asistencia vinieron de este archivo
+// -- se usa en el chip de la lista de archivos cargados.
+function contarFilasDeArchivo(nombreArchivo) {
+  return empleados.value.filter((e) => e.origenArchivo === nombreArchivo).length
+}
+
+// Quita un archivo de la lista Y todas las filas (asistencia/altas/bajas)
+// que vinieron de él -- para poder corregir "me equivoqué, ese archivo no
+// era" sin tener que limpiar todo y volver a cargar los demás.
+function quitarArchivo(archivo) {
+  archivosOriginales.value = archivosOriginales.value.filter((a) => a !== archivo)
+  empleados.value = empleados.value.filter((e) => e.origenArchivo !== archivo.name)
+  altasCargadas.value = altasCargadas.value.filter((a) => a.origenArchivo !== archivo.name)
+  bajasCargadas.value = bajasCargadas.value.filter((b) => b.origenArchivo !== archivo.name)
+  archivosResumen.value = archivosResumen.value.filter((r) => r.nombre !== archivo.name)
+  noCargados.value = noCargados.value.filter((n) => n.origenArchivo !== archivo.name)
 }
 
 async function procesarArchivoXlsm(archivo) {
@@ -1227,9 +1517,8 @@ async function procesarArchivoXlsm(archivo) {
     return
   }
 
-  archivoOriginal.value = archivo
+  archivosOriginales.value.push(archivo)
   errorXlsm.value = ''
-  resumenCarga.value = ''
   cargandoXlsm.value = true
 
   const formData = new FormData()
@@ -1240,28 +1529,53 @@ async function procesarArchivoXlsm(archivo) {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     if (data.status !== 'ok') {
-      errorXlsm.value = data.message || 'No se pudo procesar el archivo'
+      errorXlsm.value = `${archivo.name}: ${data.message || 'No se pudo procesar el archivo'}`
+      archivosOriginales.value = archivosOriginales.value.filter((a) => a !== archivo)
       return
     }
 
-    const altas = data.data.altas || []
+    // Cada alta/baja se marca con origenArchivo -- igual que las filas
+    // de asistencia más abajo -- para poder rastrear/filtrar de dónde
+    // vino cada registro cuando se cargan varios archivos juntos.
+    const altas = (data.data.altas || []).map((a) => ({ ...a, editando: false, origenArchivo: archivo.name }))
     const asistencia = data.data.asistencia || []
-    const bajas = data.data.bajas || []
+    const bajas = (data.data.bajas || []).map((b) => ({ ...b, origenArchivo: archivo.name }))
 
-    // Listas de solo-confirmación -- independientes de que se mezclen
-    // (o no) con la cuadrícula de abajo. Así SIEMPRE se ven, aunque el
-    // match por CURP entre Altas y Asistencia falle por alguna razón.
-    // `editando` es solo del cliente (para el panel expandible) -- el
-    // backend no lo manda.
-    altasCargadas.value = altas.map((a) => ({ ...a, editando: false }))
-    bajasCargadas.value = bajas
+    // NUEVO -- el backend ya reporta sus propias filas problemáticas
+    // (ID_Empleado vacío/inválido, nombres repetidos sin ID, etc.) en
+    // data.data.omitidas -- antes se ignoraban por completo. Se agregan
+    // a la misma lista noCargados para que aparezcan en la pestaña
+    // "No cargados" junto con las que detecta el cliente.
+    const omitidasBackend = (data.data.omitidas || []).map((o) => ({
+      origenArchivo: archivo.name,
+      motivo: o.motivo || 'Omitido por el servidor',
+      filas: Array.isArray(o.filas) ? o.filas : (o.fila != null ? [o.fila] : []), // o.fila es el nombre viejo -- por si no has actualizado el backend todavía
+      id_empleado: null,
+      nombre: o.nombre || '',
+      paterno: '',
+      materno: '',
+      servicio: '',
+      id_servicio: null,
+      adicional: 0,
+      otros_descuentos: 0,
+      comentarios: '',
+      dias: {},
+    }))
+    noCargados.value.push(...omitidasBackend)
+
+    // Se ACUMULAN (push), no se reemplazan -- así varios archivos
+    // conviven en las mismas listas de Altas/Bajas.
+    altasCargadas.value.push(...altas)
+    bajasCargadas.value.push(...bajas)
 
     // Días REALES en el orden verdadero del Excel (ej. 28,29,30,1,2...12) --
     // viene del backend como ARRAY (los arrays sí preservan orden en JS,
     // a diferencia de los objetos con llaves numéricas). Esto tiene que
     // asignarse ANTES de construir las filas de abajo (nuevaFilaVacia usa
-    // diasArray para saber qué días leer de cada fila del Excel).
-    if (Array.isArray(data.data.dias_columnas) && data.data.dias_columnas.length) {
+    // diasArray para saber qué días leer de cada fila del Excel). Solo se
+    // toma del PRIMER archivo -- los siguientes deben traer el mismo
+    // periodo/mismos días, si no calzan es cosa del usuario revisar.
+    if (Array.isArray(data.data.dias_columnas) && data.data.dias_columnas.length && !diasColumnas.value.length) {
       diasColumnas.value = data.data.dias_columnas
       periodo.dias = data.data.dias_columnas.length
     }
@@ -1273,18 +1587,26 @@ async function procesarArchivoXlsm(archivo) {
 
     let agregados = 0
     let omitidosPorLote = 0
+    let omitidosDuplicados = 0
     asistencia.forEach((fila) => {
       const altaRelacionada = fila.curp ? altasPorCurp[String(fila.curp).toUpperCase()] : null
       const base = altaRelacionada ? { ...fila, ...altaRelacionada, dias: fila.dias } : fila
       const idBase = base.id_empleado ?? base.id
 
+      // Ya venía de un archivo anterior en esta misma tanda -- no lo
+      // dupliques, solo cuenta y sigue.
       const yaExiste = empleados.value.some((emp) => emp.id_empleado && emp.id_empleado === idBase)
-      if (yaExiste) return
+      if (yaExiste) {
+        omitidosDuplicados++
+        noCargados.value.push(filaNoCargada(base, archivo.name, 'Repetido: ya venía de otro archivo de esta misma tanda'))
+        return
+      }
 
       // Si estás complementando un lote existente, no metas de nuevo a
       // quien ya quedó capturado en una carga anterior de ese mismo lote.
       if (idBase && duplicadoEnLote(idBase)) {
         omitidosPorLote++
+        noCargados.value.push(filaNoCargada(base, archivo.name, 'Ya estaba capturado en el lote existente elegido'))
         return
       }
 
@@ -1292,18 +1614,24 @@ async function procesarArchivoXlsm(archivo) {
         ...base,
         esNuevo: !base.id_empleado,
         editando: !!altaRelacionada, // si trae datos de alta, abre la edición inline de una vez
+        origenArchivo: archivo.name, // NUEVO -- de qué archivo salió esta fila
       }))
       agregados++
     })
 
-    resumenCarga.value = `Se cargaron ${agregados} empleado(s) desde el Excel` +
-      (bajas.length ? ` · ${bajas.length} baja(s) detectada(s) (se procesan al guardar)` : '') +
-      (omitidosPorLote ? ` · ${omitidosPorLote} omitido(s) por ya estar en este lote` : '')
+    archivosResumen.value.push({
+      nombre: archivo.name,
+      agregados,
+      bajas: bajas.length,
+      omitidosPorLote,
+      omitidosDuplicados,
+    })
 
   } catch (e) {
     const status = e?.response?.status
     console.error('[fatiga-captura] error /nomina-fatiga/preview-xlsm:', status, e?.response?.data || e)
-    errorXlsm.value = e?.response?.data?.message || 'No se pudo leer el archivo -- revisa la consola para el detalle.'
+    errorXlsm.value = `${archivo.name}: ` + (e?.response?.data?.message || 'No se pudo leer el archivo -- revisa la consola para el detalle.')
+    archivosOriginales.value = archivosOriginales.value.filter((a) => a !== archivo)
   } finally {
     cargandoXlsm.value = false
     if (inputFile.value) inputFile.value.value = ''
@@ -1319,6 +1647,10 @@ const chunkTotal = ref(0)
 const chunkProcesadas = ref(0)
 const totalNominaCalculada = ref(0)
 const idNominaGuardada = ref(null)
+
+// NUEVO -- progreso "archivo X de N" cuando se guardan varios xlsm juntos
+const archivoGuardandoIdx = ref(0)
+const archivoGuardandoTotal = ref(0)
 
 const pctCalculo = computed(() =>
   chunkTotal.value ? Math.round((chunkProcesadas.value / chunkTotal.value) * 100) : 0
@@ -1346,6 +1678,21 @@ const puedeGuardar = computed(() => {
   terminado). Ya lo agregué, calcado de tu vista que sí funciona, usando
   el mismo `nominaFatigaService` en vez de armar el POST a mano.
 */
+/*
+  ── Multi-archivo: por qué un loop y no un solo POST ────────────────
+  El backend (/procesar-xlsm) solo acepta UN archivo por request. Si
+  cargaste varios xlsm juntos, se manda uno por uno, EN ORDEN: el
+  primero crea el lote (o se pega al lote existente que hayas elegido),
+  y a partir de ahí se toma el id_nomina que regresa y TODOS los
+  archivos siguientes se pegan a ESE MISMO id_nomina -- así terminan en
+  una sola nómina, no una por archivo. Después de cada archivo se corre
+  el loop de chunks hasta completar, antes de pasar al siguiente (mismo
+  comportamiento que ya tenías al repetir manualmente "agregar a lote
+  existente" varias veces -- aquí nada más se automatiza).
+  Las filas/altas/bajas que se mandan en cada request son SOLO las que
+  vinieron de ESE archivo en concreto (por origenArchivo) -- si se
+  mandaran todas en cada llamada, se duplicaría la información.
+*/
 async function guardarYCalcular() {
   if (!puedeGuardar.value) return
   guardando.value = true
@@ -1353,92 +1700,103 @@ async function guardarYCalcular() {
   chunkTotal.value = 0
   chunkProcesadas.value = 0
   totalNominaCalculada.value = 0
+  archivoGuardandoIdx.value = 0
+  archivoGuardandoTotal.value = archivosOriginales.value.length
 
-  // Si NO hay archivo cargado (agregaste todo por búsqueda), ya no se
-  // bloquea con el error -- se manda por el endpoint nuevo
-  // /nomina-fatiga/guardar-manual, que calcula todo directo desde JSON
-  // sin necesitar volver a leer un Excel (sirve tanto para lote nuevo
-  // como para complementar uno existente).
-  if (!archivoOriginal.value) {
+  // Si NO hay ningún archivo cargado (agregaste todo por búsqueda), se
+  // manda por el endpoint /nomina-fatiga/guardar-manual, que calcula
+  // todo directo desde JSON sin necesitar volver a leer un Excel.
+  if (!archivosOriginales.value.length) {
     await guardarManualSinArchivo()
     return
   }
 
-  const formData = new FormData()
-  if (modoLote.value === 'existente') {
-    // Complementando un lote que ya existe -- igual que en tu vista de
-    // "Cargar plantilla de nómina" (iniciarProceso), se manda id_nomina
-    // en vez de nombre/periodo.
-    formData.append('id_nomina', loteSeleccionado.value)
-  } else {
-    formData.append('nombre', periodo.nombre.trim())
-    formData.append('periodo_inicio', periodo.fechaInicio || '')
-    formData.append('periodo_fin', periodo.fechaFin || '')
-  }
-  formData.append('archivo', archivoOriginal.value)
-  if (etiquetaCarga.value.trim()) formData.append('etiqueta', etiquetaCarga.value.trim())
-
-  // Las filas capturadas/editadas a mano, y las altas/bajas tal como
-  // quedaron después de que el usuario las corrigió en sus pestañas, se
-  // mandan también por si algún día el backend las prioriza -- hoy
-  // procesar-xlsm no las lee (solo re-parsea el archivo), pero mandarlas
-  // no rompe nada y evita tener que retocar el frontend cuando ese
-  // cambio de backend se haga.
-  formData.append('filas_manual', JSON.stringify(empleados.value.map((emp) => ({
-    id_empleado: emp.id_empleado,
-    curp: emp.curp,
-    rfc: emp.rfc,
-    nombre: emp.nombre,
-    paterno: emp.paterno,
-    materno: emp.materno,
-    turno: emp.turno,
-    puesto: emp.puesto,
-    servicio: emp.servicio,
-    id_servicio: emp.id_servicio,
-    salario_mensual: emp.salario_mensual,
-    modo_sueldo: emp.modo_sueldo,
-    adicional: emp.adicional,
-    otros_descuentos: emp.otros_descuentos,
-    comentarios: emp.comentarios,
-    dias: emp.dias,
-  }))))
-  formData.append('altas_manual', JSON.stringify(altasCargadas.value))
-  formData.append('bajas_manual', JSON.stringify(bajasCargadas.value))
+  // Si ya eliges un lote existente, todos los archivos se pegan a ese
+  // id_nomina desde el primero. Si no, el primer archivo lo crea y los
+  // demás heredan el id_nomina que regrese esa primera llamada.
+  let idNomina = modoLote.value === 'existente' ? loteSeleccionado.value : null
 
   try {
-    // Paso 1 -- crea el lote / procesa altas y bajas.
-    const res = await nominaFatigaService.procesarXlsm(formData)
-    if (res.status !== 'ok') {
-      errorGuardar.value = res.message || 'No se pudo guardar'
-      return
-    }
-    resultadoNomina.value = res.data || null
+    for (let i = 0; i < archivosOriginales.value.length; i++) {
+      const archivo = archivosOriginales.value[i]
+      archivoGuardandoIdx.value = i + 1
 
-    const asist = res.data?.asistencia
-    if (!asist || !asist.id_nomina) {
-      // No vino info de asistencia/id_nomina -- se guardaron altas/bajas
-      // pero no hay nada que calcular por chunks.
-      nombreNominaGuardada.value = nombreParaMostrar()
-      procesoExitoso.value = true
-      return
-    }
+      const formData = new FormData()
+      if (idNomina) {
+        formData.append('id_nomina', idNomina)
+      } else {
+        formData.append('nombre', periodo.nombre.trim())
+        formData.append('periodo_inicio', periodo.fechaInicio || '')
+        formData.append('periodo_fin', periodo.fechaFin || '')
+      }
+      formData.append('archivo', archivo)
+      if (etiquetaCarga.value.trim()) formData.append('etiqueta', etiquetaCarga.value.trim())
 
-    // Paso 2 -- el cálculo real, en lotes de 100, hasta terminar. Esto
-    // es lo que antes faltaba por completo.
-    const idNomina = asist.id_nomina
-    chunkTotal.value = asist.total || 0
-    let completo = false
-    while (!completo) {
-      const chunk = await nominaFatigaService.procesarChunk(idNomina, 100)
-      if (chunk.status !== 'ok') {
-        errorGuardar.value = chunk.message || 'Error calculando la nómina'
+      // Solo las filas de ESTE archivo -- las agregadas por búsqueda
+      // (origenArchivo null) viajan junto con el PRIMER archivo, ya que
+      // no tienen un xlsm propio al que amarrarse.
+      const filasDeEsteArchivo = empleados.value.filter(
+        (e) => e.origenArchivo === archivo.name || (i === 0 && !e.origenArchivo)
+      )
+      const altasDeEsteArchivo = altasCargadas.value.filter((a) => a.origenArchivo === archivo.name)
+      const bajasDeEsteArchivo = bajasCargadas.value.filter((b) => b.origenArchivo === archivo.name)
+
+      formData.append('filas_manual', JSON.stringify(filasDeEsteArchivo.map((emp) => ({
+        id_empleado: emp.id_empleado,
+        curp: emp.curp,
+        rfc: emp.rfc,
+        nombre: emp.nombre,
+        paterno: emp.paterno,
+        materno: emp.materno,
+        turno: emp.turno,
+        puesto: emp.puesto,
+        servicio: emp.servicio,
+        id_servicio: emp.id_servicio,
+        salario_mensual: emp.salario_mensual,
+        modo_sueldo: emp.modo_sueldo,
+        adicional: emp.adicional,
+        otros_descuentos: emp.otros_descuentos,
+        comentarios: emp.comentarios,
+        dias: emp.dias,
+      }))))
+      formData.append('altas_manual', JSON.stringify(altasDeEsteArchivo))
+      formData.append('bajas_manual', JSON.stringify(bajasDeEsteArchivo))
+
+      // Paso 1 -- crea el lote (solo en el primer archivo si es nuevo) /
+      // pega al lote existente / procesa altas y bajas de este archivo.
+      const res = await nominaFatigaService.procesarXlsm(formData)
+      if (res.status !== 'ok') {
+        errorGuardar.value = `${archivo.name}: ${res.message || 'No se pudo guardar'}`
         return
       }
-      chunkProcesadas.value = chunk.data?.filas_procesadas ?? chunkProcesadas.value
-      completo = chunk.data?.completo === true
-      if (completo) {
-        chunkProcesadas.value = chunkTotal.value
-        totalNominaCalculada.value = chunk.data?.total_pagar ?? 0
+      resultadoNomina.value = res.data || null
+
+      const asist = res.data?.asistencia
+      if (!asist || !asist.id_nomina) {
+        // Este archivo no trajo asistencia (ej. solo altas/bajas) --
+        // sigue con el siguiente archivo de la cola.
+        continue
+      }
+
+      idNomina = asist.id_nomina
+
+      // Paso 2 -- el cálculo real, en lotes de 100, hasta terminar, para
+      // lo que este archivo acaba de agregar.
+      chunkTotal.value = asist.total || 0
+      chunkProcesadas.value = 0
+      let completo = false
+      while (!completo) {
+        const chunk = await nominaFatigaService.procesarChunk(idNomina, 100)
+        if (chunk.status !== 'ok') {
+          errorGuardar.value = `${archivo.name}: ${chunk.message || 'Error calculando la nómina'}`
+          return
+        }
+        chunkProcesadas.value = chunk.data?.filas_procesadas ?? chunkProcesadas.value
+        completo = chunk.data?.completo === true
+        if (completo) {
+          chunkProcesadas.value = chunkTotal.value
+          totalNominaCalculada.value = chunk.data?.total_pagar ?? totalNominaCalculada.value
+        }
       }
     }
 
@@ -1499,6 +1857,41 @@ async function guardarManualSinArchivo() {
   } finally {
     guardando.value = false
   }
+}
+
+// Exporta "No cargados" a un xlsx con LAS MISMAS COLUMNAS que tu
+// plantilla de captura (Nombre, ID_Empleado, Servicio, ID_servicio, un
+// día por columna con el número real como encabezado, Adicional, Otros
+// Descuento, Comentarios) -- así puedes revisarlo/corregirlo y volver a
+// cargarlo tal cual, sin tener que rearmar nada a mano.
+function exportarNoCargadosXlsx() {
+  if (!noCargados.value.length) return
+
+  const dias = diasArray.value // números reales, ej. [28,29,30,1,2,...,12]
+  const headers = ['Nombre', 'Fila(s) Excel', 'ID_Empleado', 'Servicio', 'ID_servicio', ...dias.map(String), 'Adicional', 'Otros Descuento', 'Comentarios', 'Motivo (no se cargó)', 'Archivo de origen']
+
+  const filas = noCargados.value.map((n) => {
+    const nombreCompleto = [n.nombre, n.paterno, n.materno].filter(Boolean).join(' ')
+    const valoresDias = dias.map((d) => n.dias?.[d] ?? '')
+    return [
+      nombreCompleto,
+      (n.filas || []).join(', '),
+      n.id_empleado ?? '',
+      n.servicio ?? '',
+      n.id_servicio ?? '',
+      ...valoresDias,
+      n.adicional || '',
+      n.otros_descuentos || '',
+      n.comentarios || '',
+      n.motivo,
+      n.origenArchivo,
+    ]
+  })
+
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...filas])
+  XLSX.utils.book_append_sheet(wb, ws, 'No cargados')
+  XLSX.writeFile(wb, `no_cargados_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
 // Nombre a mostrar en el banner de éxito -- si fue a un lote existente,
@@ -1761,8 +2154,87 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .mini-dropzone.cargando { cursor:default; opacity:.7; }
 .hidden-input { display:none; }
 
+/* NUEVO -- chips de los archivos cargados, debajo del dropzone */
+.archivos-chip-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.archivo-chip {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 6px 4px 10px; border-radius:20px;
+  background:var(--bg2, #1a1f2e); border:0.5px solid var(--bdr2, #333a52);
+  font-size:11px; color:var(--tx1, #c7cede); max-width:260px;
+}
+.archivo-chip i:first-child { color:var(--acc, #4f8cff); flex-shrink:0; }
+.archivo-chip-count {
+  font-size:9.5px; font-weight:700; padding:1px 6px; border-radius:20px;
+  background:var(--acc-dim, rgba(79,140,255,.14)); color:var(--acc, #4f8cff); flex-shrink:0;
+}
+.archivo-chip button {
+  width:18px; height:18px; border-radius:50%; border:none; cursor:pointer;
+  background:var(--bg3, #232a3d); color:var(--tx2, #8a92a6);
+  display:flex; align-items:center; justify-content:center; font-size:9px; flex-shrink:0;
+  transition:all .12s;
+}
+.archivo-chip button:hover { background:var(--red-dim, rgba(240,84,84,.14)); color:var(--red, #f05454); }
+
+/* NUEVO -- tag chiquito bajo el nombre indicando de qué archivo salió esta fila */
+.badge-archivo {
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:9.5px; color:var(--tx3, #5b6274); margin-top:2px;
+  max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.badge-archivo i { font-size:9px; flex-shrink:0; }
+
+/* NUEVO -- filtro por archivo en el toolbar de la tabla de Asistencia */
+.select-archivo-filtro {
+  width:auto; max-width:220px; padding:7px 28px 7px 10px !important; font-size:11.5px !important;
+}
+
 .alert-warn { display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:8px; background:var(--amb-dim, rgba(245,166,35,.14)); border:0.5px solid var(--amb, #f5a623); color:var(--amb, #f5a623); font-size:13px; }
 .alert-ok   { display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:8px; background:rgba(34,201,122,.1); border:0.5px solid var(--grn, #22c97a); color:var(--grn, #22c97a); font-size:13px; }
+
+/* NUEVO -- resumen por archivo, una fila por archivo con espacio real
+   entre cada uno (reemplaza el párrafo corrido de antes). */
+.resumen-cargas {
+  border-radius:10px; padding:12px 14px;
+  background:rgba(34,201,122,.06); border:0.5px solid var(--grn, #22c97a);
+  display:flex; flex-direction:column; gap:10px;
+}
+.resumen-cargas-hdr {
+  display:flex; align-items:center; gap:8px;
+  font-size:12.5px; font-weight:600; color:var(--grn, #22c97a);
+}
+.resumen-carga-item {
+  display:flex; flex-direction:column; gap:6px;
+  padding:10px 12px; border-radius:8px;
+  background:var(--bg1, #12151f); border:0.5px solid var(--bdr, #262c3d);
+}
+.resumen-carga-item + .resumen-carga-item { margin-top:0; }
+.rc-nombre {
+  font-size:12.5px; font-weight:500; color:var(--tx0, #f1f3f9);
+  word-break:break-word;
+}
+.rc-pills { display:flex; flex-wrap:wrap; gap:6px; }
+.rc-pill {
+  display:inline-flex; align-items:center;
+  font-size:11px; padding:3px 10px; border-radius:20px; font-weight:500;
+}
+.rc-pill--ok   { background:rgba(34,201,122,.14); color:var(--grn, #22c97a); }
+.rc-pill--baja { background:var(--red-dim, rgba(240,84,84,.14)); color:var(--red, #f05454); }
+.rc-pill--warn { background:var(--amb-dim, rgba(245,166,35,.14)); color:var(--amb, #f5a623); }
+.rc-pill--error{ background:var(--red-dim, rgba(240,84,84,.14)); color:var(--red, #f05454); }
+
+/* NUEVO -- fila clickeable en la tabla de "No cargados" */
+.row-clickeable { cursor:pointer; transition:background .12s; }
+.row-clickeable:hover td { background:var(--acc-dim, rgba(79,140,255,.14)); }
+
+/* NUEVO -- chips de números de fila en el modal de detalle */
+.filas-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.fila-chip {
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:12px; padding:5px 11px; border-radius:8px;
+  background:var(--amb-dim, rgba(245,166,35,.14)); color:var(--amb, #f5a623);
+  font-weight:600; font-family:monospace;
+}
+.fila-chip i { font-size:12px; }
 
 .muted { color:var(--tx2, #8a92a6); font-weight:400; }
 
@@ -1916,6 +2388,10 @@ input[type="number"]::-webkit-inner-spin-button {
   background:rgba(255,255,255,.18);
 }
 .tab-btn:not(.active) .tab-count { background:var(--bg3, #232a3d); color:var(--tx2, #8a92a6); }
+/* NUEVO -- tab "No cargados" resalta en ámbar para que no pase desapercibida */
+.tab-btn--warn:not(.active) { color:var(--amb, #f5a623); }
+.tab-btn--warn:not(.active) .tab-count { background:var(--amb-dim, rgba(245,166,35,.14)); color:var(--amb, #f5a623); }
+.tab-btn--warn.active { background:var(--amb, #f5a623); color:#1a1200; }
 
 .btn-icon {
   width:26px; height:26px; border-radius:6px; border:0.5px solid var(--bdr2, #333a52);
