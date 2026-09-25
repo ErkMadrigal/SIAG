@@ -60,6 +60,21 @@ export const empleadosService = {
   toggleBiometrico(id, valor) {
     return api.patch(`/empleados/${id}/biometrico`, { acceso_biometrico: valor })
     .then(r => r.data)
+  },
+
+  toggleSalidaAnticipada(id, valor) {
+    return api.patch(`/empleados/${id}/salida-anticipada`, { permitir: valor })
+      .then(r => r.data)
+  },
+
+  async getEstadoAsistencia(id) {
+    const { data } = await api.get(`/empleados/${id}/estado-asistencia`)
+    return data.data
+  },
+
+  async getAsistencias(id, params = {}) {
+    const { data } = await api.get(`/empleados/${id}/asistencias`, { params })
+    return data
   }
-  
+
 }

@@ -36,6 +36,68 @@
     <div v-if="successMsg" class="alert-success"><i class="ti ti-circle-check"></i> {{ successMsg }}</div>
     <div v-if="errorMsg"   class="alert-error"><i class="ti ti-alert-circle"></i> {{ errorMsg }}</div>
 
+    <!-- Asistencia / Rostro / Salida anticipada -->
+    <div class="sec asistencia-card">
+      <div class="sec-hdr"><i class="ti ti-clock-hour-4"></i> Asistencia y biometría</div>
+      <div class="sec-body">
+        <div class="asis-grid">
+
+          <div class="asis-item">
+            <span class="asis-label">Estado actual</span>
+            <div v-if="loadingAsistencia" class="asis-skel"></div>
+            <span v-else class="asis-pill" :class="asistencia.estado">
+              <i class="ti" :class="asistencia.estado === 'dentro' ? 'ti-door-enter' : 'ti-door-exit'"></i>
+              {{ asistencia.estado === 'dentro' ? 'Dentro (con entrada activa)' : asistencia.estado === 'fuera' ? 'Fuera' : 'Sin registros' }}
+            </span>
+          </div>
+
+          <div class="asis-item">
+            <span class="asis-label">Último registro</span>
+            <div v-if="loadingAsistencia" class="asis-skel"></div>
+            <span v-else-if="asistencia.ultima_fecha" class="asis-valor">
+              {{ asistencia.ultimo_tipo }} — {{ formatFecha(asistencia.ultima_fecha) }} {{ asistencia.ultima_hora }}
+            </span>
+            <span v-else class="asis-valor muted">Sin registros aún</span>
+          </div>
+
+          <div class="asis-item">
+            <span class="asis-label">Rostro enrolado</span>
+            <span class="asis-pill" :class="empleado.rostro_enrolado == 1 ? 'dentro' : 'fuera'">
+              <i class="ti" :class="empleado.rostro_enrolado == 1 ? 'ti-face-id' : 'ti-face-id-error'"></i>
+              {{ empleado.rostro_enrolado == 1 ? 'Enrolado' : 'No enrolado' }}
+            </span>
+          </div>
+
+          <div class="asis-item">
+            <span class="asis-label">
+              Permitir salida anticipada
+              <i class="ti ti-info-circle" title="Deja a este empleado registrar su salida antes de que cumpla su horario, una sola vez. Se apaga sola después de usarse."></i>
+            </span>
+            <button
+              class="salida-toggle"
+              :class="{ active: salidaAnticipada, loading: togglingSalida }"
+              :disabled="togglingSalida"
+              @click="toggleSalidaAnticipada"
+            >
+              <span class="salida-track">
+                <span class="salida-thumb">
+                  <i v-if="togglingSalida" class="ti ti-loader-2 spin"></i>
+                </span>
+              </span>
+              <span class="salida-label">{{ salidaAnticipada ? 'Autorizada' : 'No autorizada' }}</span>
+            </button>
+          </div>
+
+        </div>
+
+        <div class="sec-footer" style="justify-content: flex-start; margin-top: 14px;">
+          <button class="btn-sm" @click="abrirHistorial">
+            <i class="ti ti-history"></i> Ver historial de asistencia
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Tabs -->
     <div class="tabs-bar">
       <button
@@ -258,6 +320,56 @@
     <p>No se encontró el empleado</p>
     <button class="btn-sm" @click="router.back()">Regresar</button>
   </div>
+
+  <!-- Modal historial de asistencia -->
+  <Teleport to="body">
+    <div v-if="showHistorialModal" class="modal-overlay" @click.self="cerrarHistorial">
+      <div class="modal-historial">
+        <div class="modal-hdr">
+          <div>
+            <h2><i class="ti ti-history"></i> Historial de asistencia</h2>
+            <p v-if="empleado">{{ empleado.nombreCompleto }}</p>
+          </div>
+          <button class="btn-close" @click="cerrarHistorial"><i class="ti ti-x"></i></button>
+        </div>
+
+        <div class="modal-body">
+          <div v-if="loadingHistorial" class="loading-wrap">
+            <div class="skeleton-card" v-for="i in 4" :key="i" style="height:44px"></div>
+          </div>
+
+          <div v-else-if="!historial.length" class="empty-wrap" style="padding:30px">
+            <i class="ti ti-calendar-off" style="font-size:36px;opacity:.3"></i>
+            <p>Sin registros de asistencia</p>
+          </div>
+
+          <table v-else class="tabla-historial">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Tipo</th>
+                <th>Ubicación</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in historial" :key="r.id">
+                <td>{{ formatFecha(r.fecha) }}</td>
+                <td>{{ r.hora }}</td>
+                <td>
+                  <span class="asis-pill sm" :class="r.tipo === 'Entrada' ? 'dentro' : 'fuera'">
+                    <i class="ti" :class="r.tipo === 'Entrada' ? 'ti-door-enter' : 'ti-door-exit'"></i>
+                    {{ r.tipo }}
+                  </span>
+                </td>
+                <td>{{ r.ubicacion || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -282,6 +394,16 @@ const errorMsg   = ref('')
 const fotoPreview = ref(null)
 const fotoFile    = ref(null)
 const fotoInputRef = ref(null)
+
+const loadingAsistencia = ref(true)
+const asistencia = reactive({ estado: null, ultimo_tipo: null, ultima_fecha: null, ultima_hora: null })
+
+const salidaAnticipada = ref(false)
+const togglingSalida   = ref(false)
+
+const showHistorialModal = ref(false)
+const loadingHistorial   = ref(false)
+const historial          = ref([])
 
 const AVATAR_COLORS = [
   { color: '#4f8ef7', bg: '#1a2d4d' },
@@ -338,7 +460,7 @@ const puedeEditarClabe = computed(() => {
 })
 
 onMounted(async () => {
-  await Promise.all([fetchEmpleado(), loadCatalogos()])
+  await Promise.all([fetchEmpleado(), loadCatalogos(), fetchEstadoAsistencia()])
 })
 
 async function fetchEmpleado() {
@@ -379,6 +501,8 @@ async function fetchEmpleado() {
     banco.institucionBancaria = data.institucionBancaria || ''
     banco.bancoId            = data.id_banco            || ''
 
+    salidaAnticipada.value = Number(data.permitir_salida_anticipada) === 1
+
   } catch (err) {
     console.error('Error:', err)
     empleado.value = null
@@ -405,6 +529,65 @@ async function loadCatalogos() {
     cats.tipoSangre   = tipoSangre
   } catch {}
   finally { loadingCats.value = false }
+}
+
+async function fetchEstadoAsistencia() {
+  loadingAsistencia.value = true
+  try {
+    const data = await empleadosService.getEstadoAsistencia(route.params.id)
+    asistencia.estado       = data.estado
+    asistencia.ultimo_tipo  = data.ultimo_tipo
+    asistencia.ultima_fecha = data.ultima_fecha
+    asistencia.ultima_hora  = data.ultima_hora
+  } catch (err) {
+    console.error('Error cargando estado de asistencia:', err)
+  } finally {
+    loadingAsistencia.value = false
+  }
+}
+
+async function toggleSalidaAnticipada() {
+  if (togglingSalida.value) return
+  const nuevoValor = salidaAnticipada.value ? 0 : 1
+
+  togglingSalida.value = true
+  try {
+    await empleadosService.toggleSalidaAnticipada(route.params.id, nuevoValor)
+    salidaAnticipada.value = nuevoValor === 1
+    showSuccess(
+      nuevoValor === 1
+        ? 'Se autorizó al empleado a registrar salida anticipada (se apaga sola al usarla)'
+        : 'Se quitó la autorización de salida anticipada'
+    )
+  } catch (err) {
+    showError(err.response?.data?.message || 'Error al actualizar la autorización de salida anticipada')
+  } finally {
+    togglingSalida.value = false
+  }
+}
+
+async function abrirHistorial() {
+  showHistorialModal.value = true
+  loadingHistorial.value   = true
+  try {
+    const res = await empleadosService.getAsistencias(route.params.id, { limit: 50 })
+    historial.value = res.data || []
+  } catch (err) {
+    console.error('Error cargando historial:', err)
+    historial.value = []
+  } finally {
+    loadingHistorial.value = false
+  }
+}
+
+function cerrarHistorial() {
+  showHistorialModal.value = false
+}
+
+function formatFecha(fecha) {
+  if (!fecha) return '—'
+  const [y, m, d] = String(fecha).split('-')
+  return d && m && y ? `${d}/${m}/${y}` : fecha
 }
 
 function mapEstatus(val) {
@@ -744,5 +927,96 @@ select option { background: var(--bg1); }
   font-size: 10px; padding: 2px 7px; border-radius: 20px;
   background: var(--amb-dim, rgba(245,158,11,0.12)); color: var(--amb, #f59e0b);
   margin-left: 8px; font-weight: 500;
+}
+
+/* Asistencia / biometría */
+.asis-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 18px;
+}
+.asis-item { display: flex; flex-direction: column; gap: 8px; }
+.asis-label {
+  font-size: 11px; font-weight: 500; color: var(--tx2);
+  display: flex; align-items: center; gap: 5px;
+}
+.asis-label i { font-size: 13px; color: var(--tx3); cursor: help; }
+.asis-valor { font-size: 13px; color: var(--tx0); }
+.asis-valor.muted { color: var(--tx3); }
+.asis-skel { height: 22px; width: 80%; border-radius: 6px; background: var(--bg2); animation: pulse 1.5s ease-in-out infinite; }
+
+.asis-pill {
+  display: inline-flex; align-items: center; gap: 6px; width: fit-content;
+  font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: 20px;
+}
+.asis-pill.dentro { background: var(--grn-dim); color: var(--grn); }
+.asis-pill.fuera  { background: var(--bg2); color: var(--tx2); border: 0.5px solid var(--bdr2); }
+.asis-pill.sm { padding: 3px 8px; font-size: 11px; }
+
+/* Switch salida anticipada */
+.salida-toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; border: none; cursor: pointer;
+  font-family: inherit; padding: 0; width: fit-content;
+}
+.salida-toggle:disabled { cursor: not-allowed; opacity: .7; }
+.salida-track {
+  width: 38px; height: 22px; border-radius: 20px;
+  background: var(--bg3); border: 0.5px solid var(--bdr2);
+  position: relative; transition: background .15s, border-color .15s; flex-shrink: 0;
+}
+.salida-toggle.active .salida-track { background: var(--amb-dim, rgba(245,158,11,0.18)); border-color: var(--amb, #f59e0b); }
+.salida-thumb {
+  position: absolute; top: 1px; left: 1px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--tx2); transition: transform .15s, background .15s;
+  display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff;
+}
+.salida-toggle.active .salida-thumb { transform: translateX(16px); background: var(--amb, #f59e0b); }
+.salida-label { font-size: 12px; font-weight: 500; color: var(--tx1); }
+.salida-toggle.active .salida-label { color: var(--amb, #f59e0b); }
+
+/* Modal historial */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; padding: 20px;
+}
+.modal-historial {
+  background: var(--bg1); border: 0.5px solid var(--bdr);
+  border-radius: 14px; width: 100%; max-width: 560px;
+  max-height: 80vh; display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+.modal-hdr {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 18px 20px; border-bottom: 0.5px solid var(--bdr);
+}
+.modal-hdr h2 {
+  font-size: 15px; font-weight: 600; color: var(--tx0);
+  display: flex; align-items: center; gap: 8px; margin-bottom: 3px;
+}
+.modal-hdr h2 i { color: var(--acc); }
+.modal-hdr p { font-size: 12px; color: var(--tx2); }
+.btn-close {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  border: 0.5px solid var(--bdr2); background: var(--bg2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--tx1); transition: all .15s;
+}
+.btn-close:hover { background: var(--bg3); color: var(--tx0); }
+.modal-body { padding: 16px 20px 20px; overflow-y: auto; }
+
+.tabla-historial { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tabla-historial th {
+  text-align: left; padding: 8px 10px; color: var(--tx3);
+  font-weight: 500; font-size: 11px; border-bottom: 0.5px solid var(--bdr);
+}
+.tabla-historial td {
+  padding: 9px 10px; color: var(--tx1);
+  border-bottom: 0.5px solid var(--bdr);
+}
+.tabla-historial tr:last-child td { border-bottom: none; }
+
+@media (max-width: 768px) {
+  .asis-grid { grid-template-columns: 1fr 1fr; }
 }
 </style>
