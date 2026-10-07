@@ -15,6 +15,7 @@ const SLUG_A_VISTAS = {
   'configuracion':['configuracion'],
   'importaciones':['importaciones'],
   'colaboradores':['colaboradores'],
+  'camaras':      ['camaras'],
 }
 
 

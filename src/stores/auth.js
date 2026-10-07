@@ -26,6 +26,7 @@ export const useAuthStore = defineStore('auth', () => {
       'nomina_workflow', 'revisar_nomina', 'dispersar_nomina',   
       'incidencias', 'hospitales', 'catalogos', 'tabulador',
       'usuarios', 'configuracion', 'importaciones', 'fatiga_buscador',
+      'camaras',
     ]
     return user.value?.vistas || []
   })
