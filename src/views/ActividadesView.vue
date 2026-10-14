@@ -9,10 +9,10 @@
       </div>
       <div class="act-header-right">
         <!-- Filtro por acción -->
-        <select class="act-select" v-model="filtroAccion" @change="fetchData(true)">
+        <SearchSelect class="act-select" v-model="filtroAccion" @change="fetchData(true)">
           <option value="">Todas las acciones</option>
           <option v-for="a in acciones" :key="a" :value="a">{{ labelAccion(a) }}</option>
-        </select>
+        </SearchSelect>
         <button class="btn-refresh" @click="fetchData(true)" :disabled="loading">
           <i class="ti ti-refresh" :class="{ spin: loading }"></i>
         </button>
@@ -105,6 +105,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore }   from '@/stores/ui.js'

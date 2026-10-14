@@ -20,16 +20,30 @@ export const useAuthStore = defineStore('auth', () => {
 
   const userVistas = computed(() => {
     const nivel = user.value?.nivel ?? user.value?.rol_nivel
-    if (nivel === 1) return [
+    if (nivel === 1 || nivel === 2) return [
       'dashboard', 'empleados', 'colaboradores', 'biometrico',
       'registros', 'prenomina', 'cargar_nomina', 'altas_bajas',
       'nomina_workflow', 'revisar_nomina', 'dispersar_nomina',   
       'incidencias', 'hospitales', 'catalogos', 'tabulador',
       'usuarios', 'configuracion', 'importaciones', 'fatiga_buscador',
-      'camaras',
+      'camaras', 'mesa_ayuda',
     ]
-    return user.value?.vistas || []
+    // Biométrico es una vista base: la ven todos los usuarios siempre.
+    // Registros NO: depende de los permisos asignados (módulo asistencias).
+    const vistas = user.value?.vistas || []
+    return vistas.includes('biometrico') ? vistas : [...vistas, 'biometrico']
   })
+
+  // ¿Puede hacer `accion` (leer|crear|actualizar|eliminar) en `modulo`?
+  // SuperAdmin siempre. Sesiones viejas sin `permisos` se dejan pasar hasta
+  // que vuelvan a iniciar sesión.
+  function can(modulo, accion) {
+    const nivel = user.value?.nivel ?? user.value?.rol_nivel
+    if (nivel === 1 || nivel === 2) return true
+    const p = user.value?.permisos
+    if (!p) return true
+    return !!p[modulo]?.[accion]
+  }
 
   const userName = computed(() => user.value?.nombre || '')
 
@@ -113,7 +127,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     user, accessToken, refreshToken,
-    isAuthenticated, userRole, userVistas,
+    isAuthenticated, userRole, userVistas, can,
     userName, userInitials,
     login, logout, refreshAccessToken,
     restoreSession, clearSession,

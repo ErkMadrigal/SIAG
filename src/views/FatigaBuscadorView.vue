@@ -14,6 +14,7 @@
 
   BUG 1 -- inputs blanco sobre blanco en TODA la vista:
   Le agregué un valor de respaldo a CADA var(--xxx) usada en el <style>
+:where(.ss-root) { width: 100%; }
   (ej. var(--bg2, #1a1f2e)) y forcé color-scheme: dark en la raíz. Esto
   hace que, pase lo que pase con la herencia de las variables del theme,
   los inputs ya NO puedan quedar invisibles -- van a verse con estos
@@ -499,10 +500,10 @@
                             </div>
                             <div class="field">
                               <label>Modo</label>
-                              <select v-model="a.modo">
+                              <SearchSelect v-model="a.modo">
                                 <option value="tabulador">Tabulador</option>
                                 <option value="salario">Salario</option>
-                              </select>
+                              </SearchSelect>
                             </div>
                             <div class="field">
                               <label>Salario mensual (BD, ya ×2)</label>
@@ -645,10 +646,10 @@
           </div>
           <!-- NUEVO -- solo aparece si hay más de un archivo cargado --
                filtra la cuadrícula para ver nada más los de tal archivo. -->
-          <select v-if="archivosUnicos.length > 1" v-model="filtroArchivo" class="select-archivo-filtro">
+          <SearchSelect v-if="archivosUnicos.length > 1" v-model="filtroArchivo" class="select-archivo-filtro">
             <option value="">Todos los archivos</option>
             <option v-for="nombre in archivosUnicos" :key="nombre" :value="nombre">{{ nombre }}</option>
-          </select>
+          </SearchSelect>
           <span class="tabla-toolbar-count">
             {{ empleadosFiltrados.length }} de {{ empleados.length }} empleado{{ empleados.length === 1 ? '' : 's' }}
           </span>
@@ -696,10 +697,10 @@
                     </button>
                   </td>
                   <td v-for="(d, i) in diasArray" :key="i" class="td-dia">
-                    <select v-model="emp.dias[i + 1]" :class="claveClass(emp.dias[i + 1])">
+                    <SearchSelect v-model="emp.dias[i + 1]" :class="claveClass(emp.dias[i + 1])">
                       <option value="">—</option>
                       <option v-for="c in clavesDisponibles" :key="c" :value="c">{{ c }}</option>
-                    </select>
+                    </SearchSelect>
                   </td>
                   <td style="text-align:right">
                     <input type="number" v-model.number="emp.adicional" class="input-num" />
@@ -777,10 +778,10 @@
                           </div>
                           <div class="field">
                             <label>Modo</label>
-                            <select v-model="emp.modo_sueldo">
+                            <SearchSelect v-model="emp.modo_sueldo">
                               <option value="tabulador">Tabulador</option>
                               <option value="salario">Salario</option>
-                            </select>
+                            </SearchSelect>
                           </div>
                         </div>
                       </div>
@@ -901,14 +902,14 @@
             <div class="field">
               <label>Patrón a repetir <span class="claves-txt">(ej. D, 24 alterna descanso/trabajo)</span></label>
               <div class="patron-selects">
-                <select v-model="formPatron.valorA">
+                <SearchSelect v-model="formPatron.valorA">
                   <option value="">—</option>
                   <option v-for="c in clavesDisponibles" :key="c" :value="c">{{ c }}</option>
-                </select>
-                <select v-model="formPatron.valorB">
+                </SearchSelect>
+                <SearchSelect v-model="formPatron.valorB">
                   <option value="">—</option>
                   <option v-for="c in clavesDisponibles" :key="c" :value="c">{{ c }}</option>
-                </select>
+                </SearchSelect>
               </div>
               <p class="claves-txt" style="margin-top:2px">
                 Si dejas el segundo en "—", se repite solo el primer valor en todos los días.
@@ -992,6 +993,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import * as XLSX from 'xlsx' // solo para exportar "No cargados" -- ver exportarNoCargadosXlsx()
@@ -1031,7 +1033,7 @@ const empleadosEnLoteExistente = ref(new Set())   // ids/numero_empleado ya capt
 const nombresEnLoteExistente = ref({})            // id -> nombre, nada más para el mensaje de aviso
 const cargandoDetalleLote = ref(false)
 
-// Dropdown propio para elegir lote -- el <select> nativo se ve horrible al
+// Dropdown propio para elegir lote -- el <SearchSelect> nativo se ve horrible al
 // abrirse (lista gris del sistema operativo que ningún CSS puede tocar),
 // así que aquí se dibuja una lista propia con el mismo estilo que el
 // buscador de empleados. loteSeleccionado sigue siendo la misma fuente de
@@ -1062,7 +1064,7 @@ async function cargarLotesAbiertos() {
 onMounted(cargarLotesAbiertos)
 
 // watch (no @change) para no depender del orden entre el v-model del
-// <select> y un listener manual en el mismo evento -- así se dispara
+// <SearchSelect> y un listener manual en el mismo evento -- así se dispara
 // siempre que el ref cambie, venga de donde venga.
 watch(loteSeleccionado, onSeleccionarLote)
 
@@ -1936,7 +1938,7 @@ function nuevaCaptura() {
 */
 .cap-view {
   display:flex; flex-direction:column; gap:14px;
-  color-scheme: dark; /* evita que el navegador fuerce su propio esquema de color en los <input>/<select> nativos */
+  color-scheme: dark; /* evita que el navegador fuerce su propio esquema de color en los <input>/<SearchSelect> nativos */
 }
 .view-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
 .view-title  { font-size:20px; font-weight:600; color:var(--tx0, #f1f3f9); }
@@ -1991,10 +1993,10 @@ function nuevaCaptura() {
 
 .lote-select-wrap { margin-top:4px; position:relative; }
 
-/* Dropdown propio -- reemplaza al <select> nativo. El botón se ve igual
+/* Dropdown propio -- reemplaza al <SearchSelect> nativo. El botón se ve igual
    que los demás inputs del theme; la lista que se abre es 100% nuestra
    (mismo lenguaje visual que .buscador-resultados), así que ya no
-   depende del estilo feo que el sistema operativo le pone a un <select>
+   depende del estilo feo que el sistema operativo le pone a un <SearchSelect>
    nativo cuando lo abres. */
 .lote-select-btn {
   width:100%; display:flex; align-items:center; gap:10px;
@@ -2071,7 +2073,7 @@ input:focus, select:focus {
 }
 ::placeholder { color:var(--tx3, #5b6274); opacity:1; }
 
-/* Los <select> nativos traen su propia flechita fea del sistema operativo
+/* Los <SearchSelect> nativos traen su propia flechita fea del sistema operativo
    que no combina con nada del theme -- se apaga y se dibuja una propia,
    consistente con el resto de los íconos. */
 select {

@@ -66,22 +66,22 @@
           <input type="date" v-model="filtros.date_to" />
         </div>
 
-        <select class="sel" v-model="filtros.cliente_id">
+        <SearchSelect class="sel" v-model="filtros.cliente_id">
           <option :value="null">Todos los clientes</option>
           <option v-for="c in clientesList" :key="c.id" :value="c.id">{{ c.nombre }}</option>
-        </select>
+        </SearchSelect>
 
-        <select class="sel" v-model="filtros.zona_id">
+        <SearchSelect class="sel" v-model="filtros.zona_id">
           <option :value="null">Todas las zonas</option>
           <option v-for="z in zonasList" :key="z.id" :value="z.id">{{ z.nombre }}</option>
-        </select>
+        </SearchSelect>
 
-        <select class="sel" v-model="filtros.pageSize" @change="aplicarFiltros">
+        <SearchSelect class="sel" v-model="filtros.pageSize" @change="aplicarFiltros">
           <option :value="10">10</option>
           <option :value="25">25</option>
           <option :value="50">50</option>
           <option :value="100">100</option>
-        </select>
+        </SearchSelect>
 
         <button class="btn-primary-lg" @click="aplicarFiltros">
           <i class="ti ti-filter" aria-hidden="true"></i> Aplicar
@@ -230,6 +230,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
 import { biometricoService } from '@/services/biometrico.service.js'

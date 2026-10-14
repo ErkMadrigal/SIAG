@@ -20,10 +20,10 @@
 
           <div class="field">
             <label>Motivo de incidencia <span class="req">*</span></label>
-            <select v-model="form.motivo" :class="{ error: errors.motivo }" :disabled="loadingCats">
+            <SearchSelect v-model="form.motivo" :class="{ error: errors.motivo }" :disabled="loadingCats">
               <option value="">Seleccione una incidencia</option>
               <option v-for="c in motivosInc" :key="c.id" :value="c.id">{{ c.valor }}</option>
-            </select>
+            </SearchSelect>
             <span v-if="errors.motivo" class="err-msg">{{ errors.motivo }}</span>
           </div>
 
@@ -128,6 +128,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { catalogosService } from '@/services/catalogos.service.js'
 import { empleadosService } from '@/services/empleados.service.js'
@@ -259,6 +260,7 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
+:where(.ss-root) { width: 100%; }
 .modal-overlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.6);

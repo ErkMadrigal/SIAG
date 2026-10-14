@@ -55,19 +55,19 @@
 
         <div class="mn-filtros">
           <input v-model="filtroNombre" placeholder="Buscar empleado..." class="mn-search" />
-          <select v-model="filtroZona" class="mn-select">
+          <SearchSelect v-model="filtroZona" class="mn-select">
             <option value="">Todas las zonas</option>
             <option v-for="z in zonasUnicas" :key="z" :value="z">{{ z }}</option>
-          </select>
+          </SearchSelect>
 
           <!-- NUEVO -- filtrar por la etiqueta que se le puso a la carga al
                subirla (ej. "Tadeo"). De aquí sale el caso que pediste: buscas
                la etiqueta, seleccionas todo lo que aparece, y los das de
                baja en lote si se cargaron mal. -->
-          <select v-if="etiquetasUnicas.length" v-model="filtroEtiqueta" class="mn-select">
+          <SearchSelect v-if="etiquetasUnicas.length" v-model="filtroEtiqueta" class="mn-select">
             <option value="">Todas las etiquetas</option>
             <option v-for="e in etiquetasUnicas" :key="e" :value="e">{{ e }}</option>
-          </select>
+          </SearchSelect>
 
           <div class="mn-filtros-divider"></div>
 
@@ -533,6 +533,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import api from '@/services/api.js'
 import DispersionModal from './DispersionModal.vue'
@@ -558,9 +559,9 @@ const tabActiva     = ref('prenomina')
 const zonasUnicas = computed(() =>
   [...new Set(detalleNomina.value.map(d => d.zona).filter(Boolean))].sort()
 )
-// NUEVO -- etiquetas únicas presentes en el detalle, para armar el <select>
+// NUEVO -- etiquetas únicas presentes en el detalle, para armar el <SearchSelect>
 // de filtro. Si nadie ha usado etiquetas en este lote, la lista sale vacía
-// y el <select> ni se muestra (ver v-if en el template).
+// y el <SearchSelect> ni se muestra (ver v-if en el template).
 const etiquetasUnicas = computed(() =>
   [...new Set(detalleNomina.value.map(d => d.etiqueta_carga).filter(Boolean))].sort()
 )

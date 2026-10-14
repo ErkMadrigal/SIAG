@@ -11,7 +11,7 @@
         <button class="btn-sm" @click="exportar">
           <i class="ti ti-download" aria-hidden="true"></i> Exportar
         </button>
-        <button class="btn-primary-lg" @click="router.push('/empleados/nuevo')">
+        <button v-if="can('empleados', 'crear')" class="btn-primary-lg" @click="router.push('/empleados/nuevo')">
           <i class="ti ti-plus" aria-hidden="true"></i> Nuevo empleado
         </button>
       </div>
@@ -80,32 +80,32 @@
         </div>
         <div class="toolbar-right">
           <!-- Filtro estatus -->
-          <select class="sel" v-model="filtros.status" @change="fetchData(1)">
+          <SearchSelect class="sel" v-model="filtros.status" @change="fetchData(1)">
             <option value="">Todos los estatus</option>
             <option value="1">Activos</option>
             <option value="2">Con permiso</option>
             <option value="0">Bajas</option>
-          </select>
+          </SearchSelect>
 
           <!-- Filtro puesto -->
-          <select class="sel" v-model="filtros.puesto" @change="fetchData(1)">
+          <SearchSelect class="sel" v-model="filtros.puesto" @change="fetchData(1)">
             <option value="">Todos los puestos</option>
             <option v-for="p in puestos" :key="p.id" :value="p.id">{{ p.valor }}</option>
-          </select>
+          </SearchSelect>
 
           <!-- Filtro biométrico -->
-          <select class="sel" v-model="filtros.biometrico" @change="fetchData(1)">
+          <SearchSelect class="sel" v-model="filtros.biometrico" @change="fetchData(1)">
             <option value="">Acceso biométrico</option>
             <option value="1">Con acceso</option>
             <option value="0">Sin acceso</option>
-          </select>
+          </SearchSelect>
 
           <!-- Registros por página -->
-          <select class="sel" v-model="perPage" @change="fetchData(1)">
+          <SearchSelect class="sel" v-model="perPage" @change="fetchData(1)">
             <option :value="10">10</option>
             <option :value="25">25</option>
             <option :value="50">50</option>
-          </select>
+          </SearchSelect>
 
           <button class="btn-sm" @click="resetFiltros">
             <i class="ti ti-refresh" aria-hidden="true"></i>
@@ -174,7 +174,7 @@
                   <button
                     class="bio-toggle"
                     :class="{ active: emp.acceso_biometrico == 1, loading: togglingId === emp.id }"
-                    :disabled="togglingId === emp.id"
+                    :disabled="togglingId === emp.id || !can('empleados', 'actualizar')"
                     @click="toggleBiometrico(emp)"
                     :title="emp.acceso_biometrico == 1 ? 'Revocar acceso biométrico' : 'Habilitar acceso biométrico'"
                   >
@@ -200,14 +200,14 @@
                     <i class="ti ti-eye"></i>
                   </button>
                   <button
-                    v-if="emp.estatus !== 0"
+                    v-if="can('empleados', 'eliminar') && emp.estatus !== 0"
                     class="icon-btn"
                     @click="abrirBaja(emp)"
                     title="Dar de baja"
                   >
                     <i class="ti ti-user-off"></i>
                   </button>
-                  <button
+                  <button v-if="can('incidencias', 'crear')"
                     class="icon-btn"
                     @click="abrirIncidencia(emp)"
                     title="Incidencia"
@@ -268,6 +268,8 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
+import { usePermisos } from '@/composables/usePermisos.js'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui.js'
@@ -277,6 +279,7 @@ import StatusPill      from '@/components/ui/StatusPill.vue'
 import ModalBaja       from '@/components/ui/ModalBaja.vue'
 import ModalIncidencia from '@/components/ui/ModalIncidencia.vue'
 import api from '@/services/api.js'
+const { can } = usePermisos()
 
 const router = useRouter()
 const ui     = useUiStore()

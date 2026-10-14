@@ -76,7 +76,7 @@
             <button
               class="salida-toggle"
               :class="{ active: salidaAnticipada, loading: togglingSalida }"
-              :disabled="togglingSalida"
+              :disabled="togglingSalida || !can('empleados', 'actualizar')"
               @click="toggleSalidaAnticipada"
             >
               <span class="salida-track">
@@ -135,27 +135,27 @@
           <div class="field"><label>Alergias</label>
             <input v-model="personal.alergias" @input="toUpper(personal,'alergias')" /></div>
           <div class="field"><label>Escolaridad</label>
-            <select v-model="personal.escolaridad" :disabled="loadingCats">
+            <SearchSelect v-model="personal.escolaridad" :disabled="loadingCats">
               <option value="">Seleccione</option>
               <option v-for="c in cats.escolaridad" :key="c.id" :value="c.id">{{ c.valor }}</option>
-            </select></div>
+            </SearchSelect></div>
           <div class="field"><label>Tipo de sangre</label>
-            <select v-model="personal.tipoSangre" :disabled="loadingCats">
+            <SearchSelect v-model="personal.tipoSangre" :disabled="loadingCats">
               <option value="">Seleccione</option>
               <option v-for="c in cats.tipoSangre" :key="c.id" :value="c.id">{{ c.valor }}</option>
-            </select></div>
+            </SearchSelect></div>
           <div class="field"><label>Nombre emergencia</label>
             <input v-model="personal.nombreEmergencia" @input="toUpper(personal,'nombreEmergencia')" /></div>
           <div class="field"><label>Teléfono emergencia</label>
             <input v-model="personal.telefonoEmergencia" maxlength="10" /></div>
           <div class="field"><label>Parentesco</label>
-            <select v-model="personal.parentesco" :disabled="loadingCats">
+            <SearchSelect v-model="personal.parentesco" :disabled="loadingCats">
               <option value="">Seleccione</option>
               <option v-for="c in cats.parentesco" :key="c.id" :value="c.id">{{ c.valor }}</option>
-            </select></div>
+            </SearchSelect></div>
         </div>
         <div class="sec-footer">
-          <button class="btn-primary-lg" :disabled="saving" @click="guardarPersonal">
+          <button v-if="can('empleados', 'actualizar')" class="btn-primary-lg" :disabled="saving" @click="guardarPersonal">
             <i class="ti ti-loader-2 spin" v-if="saving"></i>
             <i class="ti ti-check" v-else></i>
             {{ saving ? 'Guardando...' : 'Guardar cambios' }}
@@ -188,25 +188,25 @@
 
 
           <div class="field"><label>Turno</label>
-            <select v-model="trabajo.turno" :disabled="loadingCats">
+            <SearchSelect v-model="trabajo.turno" :disabled="loadingCats">
               <option value="">Seleccione</option>
               <option v-for="c in cats.turno" :key="c.id" :value="c.id">{{ c.valor }}</option>
-            </select></div>
+            </SearchSelect></div>
           <div class="field"><label>Puesto</label>
-            <select v-model="trabajo.puesto" :disabled="loadingCats">
+            <SearchSelect v-model="trabajo.puesto" :disabled="loadingCats">
               <option value="">Seleccione</option>
               <option v-for="c in cats.puesto" :key="c.id" :value="c.id">{{ c.valor }}</option>
-            </select></div>
+            </SearchSelect></div>
           <div class="field"><label>Periodicidad</label>
-            <select v-model="trabajo.periodicidad" :disabled="loadingCats">
+            <SearchSelect v-model="trabajo.periodicidad" :disabled="loadingCats">
               <option value="">Seleccione</option>
               <option v-for="c in cats.periodicidad" :key="c.id" :value="c.id">{{ c.valor }}</option>
-            </select></div>
+            </SearchSelect></div>
           <div class="field"><label>Fecha de inicio</label>
             <input type="date" v-model="trabajo.fecha_efectiva" /></div>
         </div>
         <div class="sec-footer">
-          <button class="btn-primary-lg" :disabled="saving" @click="guardarTrabajo">
+          <button v-if="can('empleados', 'actualizar')" class="btn-primary-lg" :disabled="saving" @click="guardarTrabajo">
             <i class="ti ti-loader-2 spin" v-if="saving"></i>
             <i class="ti ti-check" v-else></i>
             {{ saving ? 'Guardando...' : 'Guardar cambios' }}
@@ -243,7 +243,7 @@
           <input v-model="banco.bancoId" readonly style="opacity:.7" /></div>
       </div>
       <div class="sec-footer">
-        <button class="btn-primary-lg" :disabled="saving" @click="guardarBanco">
+        <button v-if="can('empleados', 'actualizar')" class="btn-primary-lg" :disabled="saving" @click="guardarBanco">
           <i class="ti ti-loader-2 spin" v-if="saving"></i>
           <i class="ti ti-check" v-else></i>
           {{ saving ? 'Guardando...' : 'Guardar cambios' }}
@@ -268,7 +268,7 @@
             <button class="btn-sm" @click="fotoInputRef?.click()">
               <i class="ti ti-upload"></i> Subir foto
             </button>
-            <button class="btn-primary-lg" :disabled="!fotoFile || saving" @click="guardarFoto">
+            <button v-if="can('empleados', 'actualizar')" class="btn-primary-lg" :disabled="!fotoFile || saving" @click="guardarFoto">
               <i class="ti ti-loader-2 spin" v-if="saving"></i>
               <i class="ti ti-check" v-else></i>
               {{ saving ? 'Subiendo...' : 'Guardar foto' }}
@@ -373,12 +373,15 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
+import { usePermisos } from '@/composables/usePermisos.js'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui.js'
 import { empleadosService } from '@/services/empleados.service.js'
 import { catalogosService } from '@/services/catalogos.service.js'
 import StatusPill from '@/components/ui/StatusPill.vue'
+const { can } = usePermisos()
 
 const route  = useRoute()
 const router = useRouter()
@@ -723,6 +726,7 @@ async function onClabeBlur() {
 </script>
 
 <style scoped>
+:where(.ss-root) { width: 100%; }
 .detalle-emp { display: flex; flex-direction: column; gap: 14px; }
 
 /* Header perfil */

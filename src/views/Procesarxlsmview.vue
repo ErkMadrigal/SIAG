@@ -135,12 +135,12 @@
         </div>
 
         <div v-if="modoLote === 'existente'" class="lote-select-wrap">
-          <select v-model="loteSeleccionado" class="lote-select">
+          <SearchSelect v-model="loteSeleccionado" class="lote-select">
             <option :value="null" disabled>Selecciona un lote...</option>
             <option v-for="l in lotesAbiertos" :key="l.id" :value="l.id">
               {{ l.nombre }} — {{ l.total_empleados }} empleados ({{ l.cargas?.length || 0 }} cargas)
             </option>
-          </select>
+          </SearchSelect>
 
           <div v-if="loteSeleccionado" class="lote-preview">
             <span class="lp-label">Cargas ya incluidas:</span>
@@ -368,13 +368,13 @@
             placeholder="Buscar empleado..."
             style="flex:1 1 280px; min-width:0; padding:9px 14px; border-radius:8px; border:0.5px solid var(--bdr2); background:var(--bg2); color:var(--tx0); font-size:13px; font-family:inherit; outline:none;"
           />
-          <select
+          <SearchSelect
             v-model="filtroZona"
             style="flex:0 0 auto; min-width:180px; padding:9px 14px; border-radius:8px; border:0.5px solid var(--bdr2); background:var(--bg2); color:var(--tx0); font-size:13px; font-family:inherit; cursor:pointer; outline:none;"
           >
             <option value="">Todas las zonas</option>
             <option v-for="z in zonasUnicas" :key="z" :value="z">{{ z }}</option>
-          </select>
+          </SearchSelect>
 
           <div style="display:flex; gap:10px; flex-shrink:0;">
             <button type="button" class="chip-check" :class="{ active: soloNuevos }" @click="soloNuevos = !soloNuevos">
@@ -597,6 +597,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, computed, onMounted } from 'vue'
 import { nominaFatigaService } from '@/services/Nominafatiga.service.js'
 import api from '@/services/api.js'
@@ -911,6 +912,7 @@ function formatMoney(v) {
 </script>
 
 <style scoped>
+:where(.ss-root) { width: 100%; }
 .xlsm-view { display:flex; flex-direction:column; gap:14px; }
 .view-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
 .view-title  { font-size:20px; font-weight:600; color:var(--tx0); }

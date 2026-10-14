@@ -94,10 +94,10 @@
           <div class="modal-body-content">
             <div class="field">
               <label>Zona <span class="req">*</span></label>
-              <select v-model="nuevoForm.id_zona" :class="{ error: nuevoErrors.id_zona }" :disabled="loadingCombos">
+              <SearchSelect v-model="nuevoForm.id_zona" :class="{ error: nuevoErrors.id_zona }" :disabled="loadingCombos">
                 <option value="">Seleccione una zona</option>
                 <option v-for="z in zonas" :key="z.id" :value="z.id">{{ z.zona }}</option>
-              </select>
+              </SearchSelect>
               <span v-if="nuevoErrors.id_zona" class="err-msg">{{ nuevoErrors.id_zona }}</span>
             </div>
 
@@ -148,10 +148,10 @@
           <div class="modal-body-content">
             <div class="field">
               <label>Zona <span class="req">*</span></label>
-              <select v-model="editarForm.id_zona" :disabled="loadingCombos">
+              <SearchSelect v-model="editarForm.id_zona" :disabled="loadingCombos">
                 <option value="">Seleccione una zona</option>
                 <option v-for="z in zonas" :key="z.id" :value="String(z.id)">{{ z.zona }}</option>
-              </select>
+              </SearchSelect>
             </div>
 
             <div class="field">
@@ -173,10 +173,10 @@
 
             <div class="field">
               <label>Estatus</label>
-              <select v-model="editarForm.estatus">
+              <SearchSelect v-model="editarForm.estatus">
                 <option value="1">Activo</option>
                 <option value="0">Inactivo</option>
-              </select>
+              </SearchSelect>
             </div>
 
             <div v-if="editarError" class="alert-error">
@@ -218,10 +218,10 @@
 
               <div class="field">
                 <label>Puesto <span class="req">*</span></label>
-                <select v-model="itemForm.id_puesto" :disabled="loadingCombos">
+                <SearchSelect v-model="itemForm.id_puesto" :disabled="loadingCombos">
                   <option value="">Seleccione un puesto</option>
                   <option v-for="p in puestos" :key="p.id" :value="p.id">{{ p.puesto }}</option>
-                </select>
+                </SearchSelect>
               </div>
 
               <div class="field-row">
@@ -333,10 +333,10 @@
          <div class="modal-body-content">
            <div class="field">
              <label>Nueva zona <span class="req">*</span></label>
-             <select v-model="duplicarForm.id_zona" :class="{ error: duplicarErrors.id_zona }" :disabled="loadingCombos">
+             <SearchSelect v-model="duplicarForm.id_zona" :class="{ error: duplicarErrors.id_zona }" :disabled="loadingCombos">
                <option value="">Seleccione una zona</option>
                <option v-for="z in zonas" :key="z.id" :value="z.id">{{ z.zona }}</option>
-             </select>
+             </SearchSelect>
              <span v-if="duplicarErrors.id_zona" class="err-msg">{{ duplicarErrors.id_zona }}</span>
            </div>
 
@@ -382,6 +382,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
 import { tabuladorService } from '@/services/tabulador.service.js'
@@ -632,6 +633,7 @@ function formatMoney(v) {
 </script>
 
 <style scoped>
+:where(.ss-root) { width: 100%; }
 .tab-view { display: flex; flex-direction: column; gap: 14px; }
 
 .view-header {

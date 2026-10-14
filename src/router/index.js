@@ -27,6 +27,7 @@ export const VISTAS_MAP = {
   
   incidencias:   { path: '/incidencias',     label: 'Incidencias',   icon: 'ti-alert-triangle',    section: 'Reportes' },
   camaras:       { path: '/camaras',         label: 'Cámaras',       icon: 'ti-camera',            section: 'Cámaras' },
+  mesa_ayuda:    { path: '/mesa-ayuda',      label: 'Mesa de ayuda', icon: 'ti-headset',           section: 'Mesa de ayuda' },
   hospitales:    { path: '/hospitales',      label: 'Hospitales',    icon: 'ti-building-hospital', section: 'Administración' },
   catalogos:     { path: '/catalogos',       label: 'Catálogos',     icon: 'ti-list',              section: 'Administración' },
   tabulador:     { path: '/tabulador',       label: 'Tabulador',     icon: 'ti-ruler-2',           section: 'Administración' },
@@ -69,6 +70,7 @@ const routes = [
       { path: 'altas-bajas',           name: 'altas-bajas',       component: () => import('@/views/AltasBajasView.vue'),                                  meta: { vista: 'altas_bajas' } },
       { path: 'incidencias',           name: 'incidencias',       component: () => import('@/views/IncidenciasView.vue'),                                  meta: { vista: 'incidencias' } },
       { path: 'camaras',               name: 'camaras',           component: () => import('@/views/camaras/CamarasView.vue'),                              meta: { vista: 'camaras' } },
+      { path: 'mesa-ayuda',            name: 'mesa-ayuda',        component: () => import('@/views/mesa-ayuda/MesaAyudaView.vue'),                         meta: { vista: 'mesa_ayuda' } },
       { path: 'hospitales',            name: 'hospitales',        component: () => import('@/views/PlaceholderView.vue'),                                  meta: { vista: 'hospitales' } },
       { path: 'catalogos',             name: 'catalogos',         component: () => import('@/views/CatalogosView.vue'),                                   meta: { vista: 'catalogos' } },
       { path: 'parametros',            name: 'parametros',        component: () => import('@/views/ParametrosView.vue'),                                  meta: { vista: 'catalogos' } },

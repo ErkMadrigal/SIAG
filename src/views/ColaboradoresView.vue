@@ -7,7 +7,7 @@
         <h1 class="view-title">Colaboradores</h1>
         <p class="view-sub">Usuarios con acceso al sistema</p>
       </div>
-      <button class="btn-primary-lg" @click="abrirNuevo">
+      <button v-if="can('colaboradores', 'crear')" class="btn-primary-lg" @click="abrirNuevo">
         <i class="ti ti-plus" aria-hidden="true"></i> Nuevo colaborador
       </button>
     </div>
@@ -77,8 +77,20 @@
           </div>
         </div>
 
+        <!-- Nivel -->
+        <div class="field" style="max-width:420px;margin-bottom:12px">
+          <label>Nivel de acceso</label>
+          <SearchSelect v-model="form.id_rol_sistema" sin-orden>
+            <option :value="3">Nivel 3 · Operador (solo lo que le asigne)</option>
+            <option :value="2">Nivel 2 · Administrador (todo el poder)</option>
+          </SearchSelect>
+          <span v-if="form.id_rol_sistema === 2" class="err-msg" style="color:var(--amber, #f5a623)">
+            Tendrá acceso a todos los módulos; no necesita matriz de permisos.
+          </span>
+        </div>
+
         <!-- Resumen permisos -->
-        <div class="perms-summary">
+        <div class="perms-summary" v-if="form.id_rol_sistema !== 2">
           <div class="perms-summary-info">
             <i class="ti ti-shield" style="color:var(--acc)" aria-hidden="true"></i>
             <span v-if="resumenPermisos">{{ resumenPermisos }}</span>
@@ -114,12 +126,12 @@
               <i class="ti ti-x"></i>
             </button>
           </div>
-          <select class="sel" v-model="perPage">
+          <SearchSelect class="sel" v-model="perPage">
             <option :value="5">5</option>
             <option :value="10">10</option>
             <option :value="20">20</option>
             <option :value="50">50</option>
-          </select>
+          </SearchSelect>
           <button class="btn-sm" @click="loadUsers">
             <i class="ti ti-refresh" aria-hidden="true"></i>
           </button>
@@ -175,14 +187,14 @@
               </td>
               <td @click.stop>
                     <div class="row-actions">
-                        <button class="icon-btn" @click="abrirMatriz('edit', u)" title="Editar permisos">
+                        <button v-if="can('colaboradores', 'actualizar')" class="icon-btn" @click="abrirMatriz('edit', u)" title="Editar permisos">
                             <i class="ti ti-shield-lock"></i>
                         </button>
-                        <button class="icon-btn accent" @click="abrirCambiarPass(u)" title="Cambiar contraseña">
+                        <button v-if="can('colaboradores', 'actualizar')" class="icon-btn accent" @click="abrirCambiarPass(u)" title="Cambiar contraseña">
                             <i class="ti ti-key"></i>
                         </button>
                         <button class="icon-btn danger" @click="abrirBaja(u)" title="Dar de baja"
-                        v-if="u.estatus == 1">
+                        v-if="can('colaboradores', 'eliminar') && u.estatus == 1">
                            <i class="ti ti-user-off"></i>
                         </button>
                     </div>
@@ -397,9 +409,12 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
+import { usePermisos } from '@/composables/usePermisos.js'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
 import { usuariosService } from '@/services/usuarios.service.js'
+const { can } = usePermisos()
 
 const ui = useUiStore()
 
@@ -427,7 +442,7 @@ const userAccion = ref(null)
 const nuevasCreds = ref(null)
 const savingAccion = ref(false)
 
-const form = reactive({ nombre: '', paterno: '', materno: '', correo: '' })
+const form = reactive({ nombre: '', paterno: '', materno: '', correo: '', id_rol_sistema: 3 })
 const errors = reactive({})
 
 // matriz local para nuevo usuario (antes de crear)
@@ -511,7 +526,7 @@ const resumenPermisos = computed(() => {
 // Abrir formulario nuevo
 function abrirNuevo() {
   mostrarForm.value = true
-  Object.keys(form).forEach(k => form[k] = '')
+  Object.keys(form).forEach(k => form[k] = ''); form.id_rol_sistema = 3
   Object.keys(errors).forEach(k => delete errors[k])
   credenciales.value = null
   if (matrizNew.value.length === 0 && roles.value.length) {
@@ -671,8 +686,9 @@ function validate() {
 async function handleCreate() {
   if (!validate()) return
 
+  const esAdmin = form.id_rol_sistema === 2
   const rolesPayload = matrizToPayload(matrizNew.value)
-  if (!rolesPayload.length) {
+  if (!esAdmin && !rolesPayload.length) {
     errors.correo = 'Selecciona al menos un permiso'
     return
   }
@@ -684,9 +700,10 @@ async function handleCreate() {
       paterno: form.paterno,
       materno: form.materno,
       correo:  form.correo,
+      id_rol_sistema: form.id_rol_sistema,
     })
 
-    if (res.last_insert_id) {
+    if (res.last_insert_id && rolesPayload.length) {
       await usuariosService.setRoles(res.last_insert_id, rolesPayload)
     }
 
@@ -696,7 +713,7 @@ async function handleCreate() {
     }
 
     mostrarForm.value = false
-    Object.keys(form).forEach(k => form[k] = '')
+    Object.keys(form).forEach(k => form[k] = ''); form.id_rol_sistema = 3
     matrizNew.value = buildEmptyMatrix()
     await loadUsers()
   } catch (err) {
@@ -729,6 +746,7 @@ function getRoles(u) {
 </script>
 
 <style scoped>
+:where(.ss-root) { width: 100%; }
 
 .icon-btn.accent { color: var(--amb); }
 .icon-btn.accent:hover { background: var(--amb-dim); }

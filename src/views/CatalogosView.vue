@@ -31,7 +31,7 @@
               />
               <span v-if="errorTipo" class="err-msg">{{ errorTipo }}</span>
             </div>
-            <button class="btn-primary-lg full mt-8" :disabled="savingTipo" @click="crearTipo">
+            <button v-if="can('catalogos', 'crear')" class="btn-primary-lg full mt-8" :disabled="savingTipo" @click="crearTipo">
               <i class="ti ti-loader-2 spin" v-if="savingTipo" aria-hidden="true"></i>
               <i class="ti ti-plus" v-else aria-hidden="true"></i>
               {{ savingTipo ? 'Creando...' : 'Agregar tipo' }}
@@ -95,7 +95,7 @@
                   <input v-model="nuevoItem.descripcion" placeholder="Descripción opcional" />
                 </div>
               </div>
-              <button class="btn-primary-lg mt-8" :disabled="savingItem" @click="crearItem">
+              <button v-if="can('catalogos', 'crear')" class="btn-primary-lg mt-8" :disabled="savingItem" @click="crearItem">
                 <i class="ti ti-loader-2 spin" v-if="savingItem" aria-hidden="true"></i>
                 <i class="ti ti-plus" v-else aria-hidden="true"></i>
                 {{ savingItem ? 'Guardando...' : 'Agregar item' }}
@@ -146,10 +146,10 @@
                     </td>
                     <td>
                       <div class="row-actions">
-                        <button class="icon-btn accent" @click="abrirEditar(item)" title="Editar">
+                        <button v-if="can('catalogos', 'actualizar')" class="icon-btn accent" @click="abrirEditar(item)" title="Editar">
                           <i class="ti ti-edit"></i>
                         </button>
-                        <button class="icon-btn danger" @click="eliminarItem(item)" title="Eliminar">
+                        <button v-if="can('catalogos', 'eliminar')" class="icon-btn danger" @click="eliminarItem(item)" title="Eliminar">
                           <i class="ti ti-trash"></i>
                         </button>
                       </div>
@@ -227,6 +227,8 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
 import api from '@/services/api.js'
+import { usePermisos } from '@/composables/usePermisos.js'
+const { can } = usePermisos()
 
 const ui = useUiStore()
 

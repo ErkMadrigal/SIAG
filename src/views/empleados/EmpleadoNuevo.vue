@@ -97,18 +97,18 @@
             </div>
             <div class="field">
               <label>Escolaridad <span class="req">*</span></label>
-              <select v-model="form.escolaridad" :class="{ error: errors.escolaridad }" :disabled="loadingCats">
+              <SearchSelect v-model="form.escolaridad" :class="{ error: errors.escolaridad }" :disabled="loadingCats">
                 <option value="">Seleccione una escolaridad</option>
                 <option v-for="c in cats.escolaridad" :key="c.id" :value="c.id">{{ c.valor }}</option>
-              </select>
+              </SearchSelect>
               <span v-if="errors.escolaridad" class="err-msg">{{ errors.escolaridad }}</span>
             </div>
             <div class="field">
               <label>Tipo de sangre <span class="req">*</span></label>
-              <select v-model="form.tipoSangre" :class="{ error: errors.tipoSangre }" :disabled="loadingCats">
+              <SearchSelect v-model="form.tipoSangre" :class="{ error: errors.tipoSangre }" :disabled="loadingCats">
                 <option value="">Seleccione un tipo de sangre</option>
                 <option v-for="c in cats.tipoSangre" :key="c.id" :value="c.id">{{ c.valor }}</option>
-              </select>
+              </SearchSelect>
               <span v-if="errors.tipoSangre" class="err-msg">{{ errors.tipoSangre }}</span>
             </div>
           </div>
@@ -135,10 +135,10 @@
             </div>
             <div class="field">
               <label>Parentesco <span class="req">*</span></label>
-              <select v-model="form.parentesco" :class="{ error: errors.parentesco }" :disabled="loadingCats">
+              <SearchSelect v-model="form.parentesco" :class="{ error: errors.parentesco }" :disabled="loadingCats">
                 <option value="">Seleccione un parentesco</option>
                 <option v-for="c in cats.parentesco" :key="c.id" :value="c.id">{{ c.valor }}</option>
-              </select>
+              </SearchSelect>
               <span v-if="errors.parentesco" class="err-msg">{{ errors.parentesco }}</span>
             </div>
           </div>
@@ -169,26 +169,26 @@
           <div class="field-grid">
             <div class="field">
               <label>Turno <span class="req">*</span></label>
-              <select v-model="form.turno" :class="{ error: errors.turno }" :disabled="loadingCats">
+              <SearchSelect v-model="form.turno" :class="{ error: errors.turno }" :disabled="loadingCats">
                 <option value="">Seleccione un turno</option>
                 <option v-for="c in cats.turno" :key="c.id" :value="c.id">{{ c.valor }}</option>
-              </select>
+              </SearchSelect>
               <span v-if="errors.turno" class="err-msg">{{ errors.turno }}</span>
             </div>
             <div class="field">
               <label>Puesto <span class="req">*</span></label>
-              <select v-model="form.puesto" :class="{ error: errors.puesto }" :disabled="loadingCats">
+              <SearchSelect v-model="form.puesto" :class="{ error: errors.puesto }" :disabled="loadingCats">
                 <option value="">Seleccione un puesto</option>
                 <option v-for="c in cats.puesto" :key="c.id" :value="c.id">{{ c.valor }}</option>
-              </select>
+              </SearchSelect>
               <span v-if="errors.puesto" class="err-msg">{{ errors.puesto }}</span>
             </div>
             <div class="field">
               <label>Periodicidad de pago <span class="req">*</span></label>
-              <select v-model="form.periodicidad" :class="{ error: errors.periodicidad }" :disabled="loadingCats">
+              <SearchSelect v-model="form.periodicidad" :class="{ error: errors.periodicidad }" :disabled="loadingCats">
                 <option value="">Seleccione una periodicidad</option>
                 <option v-for="c in cats.periodicidad" :key="c.id" :value="c.id">{{ c.valor }}</option>
-              </select>
+              </SearchSelect>
               <span v-if="errors.periodicidad" class="err-msg">{{ errors.periodicidad }}</span>
             </div>
             <div class="field">
@@ -272,6 +272,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui.js'
@@ -517,6 +518,7 @@ function limpiarForm() {
 </script>
 
 <style scoped>
+:where(.ss-root) { width: 100%; }
 .nuevo-emp { display: flex; flex-direction: column; gap: 14px; }
 .view-header {
   display: flex; align-items: flex-start;

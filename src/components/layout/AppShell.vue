@@ -10,7 +10,10 @@
     <div class="shell-main">
       <TopBar />
       <main class="shell-content">
-        <RouterView />
+        <!-- key por :id => al pasar de /empleados/1 a /empleados/2 se recarga el detalle -->
+        <RouterView v-slot="{ Component, route }">
+          <component :is="Component" :key="route.params.id ?? route.name" />
+        </RouterView>
       </main>
     </div>
     <CommandPalette v-if="ui.cmdPaletteOpen" />

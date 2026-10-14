@@ -23,15 +23,15 @@
           </button>
         </div>
 
-        <select class="sel" v-model="filtros.action" @change="aplicar">
+        <SearchSelect class="sel" v-model="filtros.action" @change="aplicar">
           <option value="">Todas las acciones</option>
           <option v-for="a in acciones" :key="a" :value="a">{{ a }}</option>
-        </select>
+        </SearchSelect>
 
-        <select class="sel" v-model="filtros.entity" @change="aplicar">
+        <SearchSelect class="sel" v-model="filtros.entity" @change="aplicar">
           <option value="">Todos los módulos</option>
           <option v-for="e in entidades" :key="e" :value="e">{{ e }}</option>
-        </select>
+        </SearchSelect>
 
         <div class="field-inline">
           <label>Desde</label>
@@ -43,12 +43,12 @@
           <input type="date" v-model="filtros.date_to" @change="aplicar" />
         </div>
 
-        <select class="sel" v-model="filtros.limit" @change="aplicar">
+        <SearchSelect class="sel" v-model="filtros.limit" @change="aplicar">
           <option :value="10">10</option>
           <option :value="25">25</option>
           <option :value="50">50</option>
           <option :value="100">100</option>
-        </select>
+        </SearchSelect>
 
         <button class="btn-sm" @click="resetFiltros">
           <i class="ti ti-eraser" aria-hidden="true"></i> Limpiar
@@ -223,6 +223,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
 import { auditService } from '@/services/audit.service.js'

@@ -40,30 +40,30 @@
           <div class="filtros-grid">
             <div class="field">
               <label>Zona <span class="req">*</span></label>
-              <select v-model="zonaSelId" @change="onZonaChange" :disabled="loadingZonas">
+              <SearchSelect v-model="zonaSelId" @change="onZonaChange" :disabled="loadingZonas">
                 <option value="">{{ loadingZonas ? 'Cargando...' : 'Seleccione una zona' }}</option>
                 <option v-for="z in zonas" :key="z.id" :value="z.id">{{ z.zona }}</option>
-              </select>
+              </SearchSelect>
             </div>
 
             <div class="field">
               <label>Servicio <span class="opt-label">(opcional)</span></label>
-              <select v-model="servicioFiltro" :disabled="!zonaSelId || loadingServicios">
+              <SearchSelect v-model="servicioFiltro" :disabled="!zonaSelId || loadingServicios">
                 <option value="">— Todos los servicios —</option>
                 <option v-for="s in servicios" :key="s.id" :value="s.id">{{ s.servicio }}</option>
-              </select>
+              </SearchSelect>
             </div>
 
             <div class="field">
               <label>Empleado <span class="opt-label">(opcional)</span></label>
-              <select v-model="empleadoFiltro" :disabled="!zonaSelId || loadingEmpleados">
+              <SearchSelect v-model="empleadoFiltro" :disabled="!zonaSelId || loadingEmpleados">
                 <option value="">— Todos los empleados —</option>
                 <optgroup v-for="grupo in empleadosPorServicio" :key="grupo.servicio" :label="grupo.servicio">
                   <option v-for="e in grupo.empleados" :key="e.id" :value="e.id">
                     {{ e.nombreCompleto }}
                   </option>
                 </optgroup>
-              </select>
+              </SearchSelect>
             </div>
 
             <div class="field">
@@ -174,10 +174,10 @@
           <div class="sec-hdr">
             <i class="ti ti-users" aria-hidden="true"></i>
             <span>Detalle por empleado</span>
-            <select v-model="filtroServicioResultado" class="sel-sm" style="margin-left:auto">
+            <SearchSelect v-model="filtroServicioResultado" class="sel-sm" style="margin-left:auto">
               <option value="">Todos los servicios</option>
               <option v-for="s in serviciosEnResultado" :key="s" :value="s">{{ s }}</option>
-            </select>
+            </SearchSelect>
           </div>
 
           <div class="table-wrap">
@@ -685,6 +685,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, computed, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
 import { nominaService } from '@/services/nomina.service.js'
@@ -1248,6 +1249,7 @@ function formatFecha(v) {
 </script>
 
 <style scoped>
+:where(.ss-root) { width: 100%; }
 .nom-view    { display:flex; flex-direction:column; gap:14px; }
 .view-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
 .view-title  { font-size:20px; font-weight:600; color:var(--tx0); }

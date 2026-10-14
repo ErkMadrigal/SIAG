@@ -7,7 +7,7 @@
     1. Define cuántos días tiene el periodo (15, 16, 7, etc.)
     2. Busca y agrega empleados uno por uno
     3. Por cada empleado elige su servicio y captura día por día
-       con un <select> (D, 24, 12, F, I, PCS, PSS, A, B, V, 24E, 12E)
+       con un <SearchSelect> (D, 24, 12, F, I, PCS, PSS, A, B, V, 24E, 12E)
     4. Botón "rellenar patrón" para alternar 2 valores rápido en toda la fila
     5. Guarda → llama a /nomina-fatiga/procesar-asistencia con JSON
        (mismo backend que el .xlsm, mismo cálculo de tabulador)
@@ -129,16 +129,16 @@
                 </div>
               </td>
               <td class="col-sticky col-servicio">
-                <select v-model="fila.id_servicio" class="sel-servicio">
+                <SearchSelect v-model="fila.id_servicio" class="sel-servicio">
                   <option value="">— Selecciona —</option>
                   <option v-for="s in servicios" :key="s.id" :value="s.id">{{ s.servicio }}</option>
-                </select>
+                </SearchSelect>
               </td>
               <td v-for="d in totalDias" :key="d" class="col-dia">
-                <select v-model="fila.dias[d]" class="sel-dia" :class="claseColorDia(fila.dias[d])">
+                <SearchSelect v-model="fila.dias[d]" class="sel-dia" :class="claseColorDia(fila.dias[d])">
                   <option value="">—</option>
                   <option v-for="c in CODIGOS" :key="c.valor" :value="c.valor">{{ c.valor }}</option>
-                </select>
+                </SearchSelect>
               </td>
               <td class="col-money">
                 <input type="number" v-model.number="fila.adicional" step="0.01" class="inp-money" />
@@ -210,14 +210,14 @@
             <div class="field">
               <label>Patrón a repetir (ej. D,24 alterna descanso/trabajo)</label>
               <div class="patron-inputs">
-                <select v-model="patronValores[0]" class="sel-dia">
+                <SearchSelect v-model="patronValores[0]" class="sel-dia">
                   <option value="">—</option>
                   <option v-for="c in CODIGOS" :key="c.valor" :value="c.valor">{{ c.valor }}</option>
-                </select>
-                <select v-model="patronValores[1]" class="sel-dia">
+                </SearchSelect>
+                <SearchSelect v-model="patronValores[1]" class="sel-dia">
                   <option value="">—</option>
                   <option v-for="c in CODIGOS" :key="c.valor" :value="c.valor">{{ c.valor }}</option>
-                </select>
+                </SearchSelect>
               </div>
             </div>
             <div class="field">
@@ -240,6 +240,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, onMounted, watch, nextTick } from 'vue'
 import api from '@/services/api.js'
 import { nominaFatigaService } from '@/services/Nominafatiga.service.js'
@@ -504,6 +505,7 @@ defineExpose({ limpiarTodo })
 </script>
 
 <style scoped>
+:where(.ss-root) { width: 100%; }
 .captura-view { display:flex; flex-direction:column; gap:14px; }
 
 .aviso-borrador {

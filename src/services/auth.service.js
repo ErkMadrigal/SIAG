@@ -4,7 +4,7 @@ import api from './api.js'
 const SLUG_A_VISTAS = {
   'empleados':    ['empleados'],
   'incidencias':  ['incidencias'],
-  'asistencias':  ['biometrico', 'registros'],
+  'asistencias':  ['registros'],
   'biometrico':   ['biometrico', 'registros'],
   'reportes': ['prenomina', 'altas_bajas', 'cargar_nomina', 'nomina_workflow', 'revisar_nomina', 'dispersar_nomina', 'fatiga_buscador'],
 
@@ -16,6 +16,9 @@ const SLUG_A_VISTAS = {
   'importaciones':['importaciones'],
   'colaboradores':['colaboradores'],
   'camaras':      ['camaras'],
+  'configuraciones': ['configuracion'],
+  'masivos':      ['importaciones'],
+  'mesa_ayuda':   ['mesa_ayuda'],
 }
 
 
@@ -28,6 +31,25 @@ function slugsAVistas(slugs = []) {
     if (mapped) mapped.forEach(v => vistas.add(v))
   })
   return [...vistas]
+}
+
+// "usuarios.crear" → { usuarios: { crear: true } }. Acepta también los slugs
+// legacy (listar/ver → leer, editar → actualizar, gestionar → crear+actualizar).
+const ACCION = {
+  leer: ['leer'], listar: ['leer'], ver: ['leer'],
+  crear: ['crear'], actualizar: ['actualizar'], editar: ['actualizar'],
+  eliminar: ['eliminar'], gestionar: ['crear', 'actualizar'],
+}
+function slugsAPermisos(slugs = []) {
+  const out = {}
+  slugs.forEach(slug => {
+    const [mod, acc] = String(slug).split('.')
+    ;(ACCION[acc] || []).forEach(a => {
+      out[mod] = out[mod] || {}
+      out[mod][a] = true
+    })
+  })
+  return out
 }
 
 export const authService = {
@@ -52,6 +74,7 @@ export const authService = {
         correo:    usuario.correo,
         empresas:  usuario.empresas,
         vistas:    slugsAVistas(usuario.vistas),
+        permisos:  slugsAPermisos(usuario.vistas),
       }
     }
   },

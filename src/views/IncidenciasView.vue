@@ -36,17 +36,17 @@
             placeholder="Buscar por nombre, RFC, CURP, tipo..."
             @input="page = 1"
           />
-          <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''; page = 1">
+          <button v-if="can('incidencias', 'actualizar') && searchQuery" class="clear-btn" @click="searchQuery = ''; page = 1">
             <i class="ti ti-x"></i>
           </button>
         </div>
         <div class="toolbar-right">
-          <select class="sel" v-model="perPage" @change="page = 1">
+          <SearchSelect class="sel" v-model="perPage" @change="page = 1">
             <option :value="10">10</option>
             <option :value="25">25</option>
             <option :value="50">50</option>
             <option :value="100">100</option>
-          </select>
+          </SearchSelect>
         </div>
       </div>
 
@@ -245,11 +245,11 @@
           <div class="modal-footer">
             <button class="btn-sm" :disabled="procesando !== ''" @click="cerrarModal">Cerrar</button>
             <template v-if="selected?.activo == 0">
-              <button class="btn-danger" :disabled="procesando !== ''" @click="setDecision('rechazar')">
+              <button v-if="can('incidencias', 'actualizar')" class="btn-danger" :disabled="procesando !== ''" @click="setDecision('rechazar')">
                 <i class="ti ti-loader-2 spin" v-if="procesando === 'rechazar'"></i>
                 <i class="ti ti-x" v-else></i> Rechazar
               </button>
-              <button class="btn-success" :disabled="procesando !== ''" @click="setDecision('aprobar')">
+              <button v-if="can('incidencias', 'actualizar')" class="btn-success" :disabled="procesando !== ''" @click="setDecision('aprobar')">
                 <i class="ti ti-loader-2 spin" v-if="procesando === 'aprobar'"></i>
                 <i class="ti ti-check" v-else></i> Aprobar
               </button>
@@ -267,9 +267,12 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
+import { usePermisos } from '@/composables/usePermisos.js'
 import { ref, computed, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
 import { incidenciasService } from '@/services/incidencias.service.js'
+const { can } = usePermisos()
 
 const ui = useUiStore()
 

@@ -222,7 +222,7 @@
                 <div class="field" :class="{ 'field-full': f.fullWidth }">
                   <label>{{ f.label }} <span v-if="f.required" class="req">*</span></label>
 
-                  <select v-if="f.type === 'select' && f.optionsFrom"
+                  <SearchSelect v-if="f.type === 'select' && f.optionsFrom"
                     v-model="modalForm.data[f.name]"
                     :disabled="loadingDeps"
                   >
@@ -230,13 +230,13 @@
                     <option v-for="o in getDepOptions(f.optionsFrom)" :key="o.id" :value="o.id">
                       {{ o[f.optionsFrom[1]] || o.nombre || o.label }}
                     </option>
-                  </select>
+                  </SearchSelect>
 
-                  <select v-else-if="f.type === 'select'"
+                  <SearchSelect v-else-if="f.type === 'select'"
                     v-model="modalForm.data[f.name]"
                   >
                     <option v-for="[v,l] in f.options" :key="v" :value="v">{{ l }}</option>
-                  </select>
+                  </SearchSelect>
 
                   <input v-else
                     :type="f.type || 'text'"
@@ -337,6 +337,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, reactive, computed, onMounted, defineComponent, h } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
 import api from '@/services/api.js'
@@ -665,6 +666,7 @@ function getDepOptions(optionsFrom) {
 </script>
 
 <style scoped>
+:where(.ss-root) { width: 100%; }
 .params-view { display: flex; flex-direction: column; gap: 14px; }
 .view-header  { display: flex; align-items: center; justify-content: space-between; }
 .view-title   { font-size: 20px; font-weight: 600; color: var(--tx0); }

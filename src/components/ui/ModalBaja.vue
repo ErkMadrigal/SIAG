@@ -28,21 +28,21 @@
             </div>
             <div class="field">
               <label>Finiquito <span class="req">*</span></label>
-              <select v-model="form.finiquito" :class="{ error: errors.finiquito }">
+              <SearchSelect v-model="form.finiquito" :class="{ error: errors.finiquito }">
                 <option value="">Selecciona una opción</option>
                 <option value="1">Con finiquito</option>
                 <option value="0">Sin finiquito</option>
-              </select>
+              </SearchSelect>
               <span v-if="errors.finiquito" class="err-msg">{{ errors.finiquito }}</span>
             </div>
           </div>
 
           <div class="field">
             <label>Motivo de baja <span class="req">*</span></label>
-            <select v-model="form.motivo_baja" :class="{ error: errors.motivo_baja }" :disabled="loadingCats">
+            <SearchSelect v-model="form.motivo_baja" :class="{ error: errors.motivo_baja }" :disabled="loadingCats">
               <option value="">Seleccione un motivo</option>
               <option v-for="c in motivosBaja" :key="c.id" :value="c.id">{{ c.valor }}</option>
-            </select>
+            </SearchSelect>
             <span v-if="errors.motivo_baja" class="err-msg">{{ errors.motivo_baja }}</span>
           </div>
 
@@ -69,6 +69,7 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, reactive, onMounted } from 'vue'
 import { catalogosService } from '@/services/catalogos.service.js'
 import { empleadosService } from '@/services/empleados.service.js'
@@ -126,6 +127,7 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
+:where(.ss-root) { width: 100%; }
 .modal-overlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.6);

@@ -20,7 +20,7 @@
         </button>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn-primary-lg" @click="abrirNueva"><i class="ti ti-plus"></i> Nueva cámara</button>
+        <button v-if="can('camaras', 'crear')" class="btn-primary-lg" @click="abrirNueva"><i class="ti ti-plus"></i> Nueva cámara</button>
         <button class="btn-sm" @click="recargar" title="Recargar"><i class="ti ti-refresh"></i></button>
       </div>
     </div>
@@ -44,16 +44,16 @@
           <button v-if="filtros.q" class="clear-btn" @click="filtros.q = ''; cargarCamaras()"><i class="ti ti-x"></i></button>
         </div>
         <div class="toolbar-right">
-          <select class="sel" v-model="filtros.estado" @change="cargarCamaras">
+          <SearchSelect class="sel" v-model="filtros.estado" @change="cargarCamaras">
             <option value="">Todos los estados</option>
             <option v-for="e in resumen.estados" :key="e.estado" :value="e.estado">{{ e.estado }} ({{ e.total }})</option>
-          </select>
-          <select class="sel" v-model="filtros.estatus" @change="cargarCamaras">
+          </SearchSelect>
+          <SearchSelect class="sel" v-model="filtros.estatus" @change="cargarCamaras">
             <option value="">Todos los estatus</option>
             <option value="activa">Activas</option>
             <option value="con_falla">Con falla</option>
             <option value="inactiva">Inactivas</option>
-          </select>
+          </SearchSelect>
         </div>
       </div>
 
@@ -109,14 +109,14 @@
     <div class="sec" v-show="tab === 'tickets'">
       <div class="toolbar">
         <div class="toolbar-right" style="margin-left:0">
-          <select class="sel" v-model="filtroTicket" @change="cargarTickets">
+          <SearchSelect class="sel" v-model="filtroTicket" @change="cargarTickets">
             <option value="">Todos</option>
             <option value="abierto">Abiertos</option>
             <option value="en_proceso">En proceso</option>
             <option value="resuelto">Resueltos</option>
-          </select>
+          </SearchSelect>
         </div>
-        <button class="btn-primary-lg" style="margin-left:auto" @click="abrirNuevoTicket">
+        <button v-if="can('camaras', 'crear')" class="btn-primary-lg" style="margin-left:auto" @click="abrirNuevoTicket">
           <i class="ti ti-ticket"></i> Nuevo ticket
         </button>
       </div>
@@ -179,10 +179,10 @@
                 <span v-if="detectando" class="det"><i class="ti ti-loader-2 spin"></i> detectando...</span>
                 <span v-else-if="autoDetectado" class="det ok"><i class="ti ti-sparkles"></i> detectado por ubicación</span>
               </label>
-              <select class="inp" v-model="form.estado" @change="estadoManual = true">
+              <SearchSelect class="inp" v-model="form.estado" @change="estadoManual = true">
                 <option value="">Seleccione</option>
                 <option v-for="e in ESTADOS_MX" :key="e" :value="e">{{ e }}</option>
-              </select>
+              </SearchSelect>
               <label class="lbl">Dirección / referencia</label>
               <input class="inp" v-model="form.direccion" placeholder="Se detecta sola al marcar el punto; puedes corregirla"
                      @input="direccionManual = true" />
@@ -224,9 +224,9 @@
                 </option>
               </select>
               <label class="lbl">Tipo de falla</label>
-              <select class="inp" v-model="tk.tipo_falla">
+              <SearchSelect class="inp" v-model="tk.tipo_falla">
                 <option v-for="(l, k) in TIPOS_FALLA" :key="k" :value="k">{{ l }}</option>
-              </select>
+              </SearchSelect>
               <label class="lbl">Descripción</label>
               <input class="inp" v-model="tk.descripcion" placeholder="Ej. Se va la señal por las tardes" />
               <label class="lbl">Foto (opcional)</label>
@@ -280,11 +280,11 @@
 
             <div class="blk-title" style="margin-top:18px"><i class="ti ti-alert-triangle"></i> Levantar ticket de falla</div>
             <div class="form-grid">
-              <select v-model="nuevoTicket.tipo_falla" class="inp">
+              <SearchSelect v-model="nuevoTicket.tipo_falla" class="inp">
                 <option v-for="(l, k) in TIPOS_FALLA" :key="k" :value="k">{{ l }}</option>
-              </select>
+              </SearchSelect>
               <input class="inp" v-model="nuevoTicket.descripcion" placeholder="Describe la falla (opcional)" />
-              <button class="btn-primary-lg" :disabled="guardando" @click="crearTicket">
+              <button v-if="can('camaras', 'crear')" class="btn-primary-lg" :disabled="guardando" @click="crearTicket">
                 <i class="ti ti-loader-2 spin" v-if="guardando"></i><i class="ti ti-plus" v-else></i> Crear ticket
               </button>
             </div>
@@ -324,13 +324,13 @@
 
             <div class="blk-title" style="margin-top:18px"><i class="ti ti-message"></i> Actualizar</div>
             <div class="form-grid">
-              <select v-model="seguimiento.estatus" class="inp">
+              <SearchSelect v-model="seguimiento.estatus" class="inp">
                 <option value="abierto">Abierto</option>
                 <option value="en_proceso">En proceso</option>
                 <option value="resuelto">Resuelto</option>
-              </select>
+              </SearchSelect>
               <input class="inp" v-model="seguimiento.comentario" placeholder="Comentario (qué se hizo, qué falta...)" />
-              <button class="btn-primary-lg" :disabled="guardando" @click="guardarSeguimiento">
+              <button v-if="can('camaras', 'actualizar')" class="btn-primary-lg" :disabled="guardando" @click="guardarSeguimiento">
                 <i class="ti ti-loader-2 spin" v-if="guardando"></i><i class="ti ti-check" v-else></i> Guardar
               </button>
             </div>
@@ -344,10 +344,13 @@
 </template>
 
 <script setup>
+import SearchSelect from '@/components/ui/SearchSelect.vue'
+import { usePermisos } from '@/composables/usePermisos.js'
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { camarasService } from '@/services/camaras.service.js'
 import { cargarLeaflet } from '@/composables/useLeaflet.js'
 import FotoInput from '@/components/ui/FotoInput.vue'
+const { can } = usePermisos()
 
 const TIPOS_FALLA = {
   sin_senal: 'Sin señal',
