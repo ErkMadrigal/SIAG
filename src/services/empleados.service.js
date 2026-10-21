@@ -72,6 +72,56 @@ export const empleadosService = {
     return data.data
   },
 
+  // Expediente digital (solo administradores)
+  async getDocumentos(id) {
+    const { data } = await api.get(`/empleados/${id}/documentos`)
+    return data.data || []
+  },
+  async subirDocumento(id, formData) {
+    const { data } = await api.post(`/empleados/${id}/documentos`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data
+  },
+  async aprobarDocumento(docId) {
+    const { data } = await api.post(`/empleados/documentos/${docId}/aprobar`)
+    return data
+  },
+  async rechazarDocumento(docId, motivo) {
+    const { data } = await api.post(`/empleados/documentos/${docId}/rechazar`, { motivo })
+    return data
+  },
+  async eliminarDocumento(docId) {
+    const { data } = await api.delete(`/empleados/documentos/${docId}`)
+    return data
+  },
+  // El archivo exige JWT, así que se baja como blob y se abre en una pestaña nueva
+  async abrirDocumento(docId) {
+    const res = await api.get(`/empleados/documentos/${docId}/archivo`, { responseType: 'blob' })
+    const url = URL.createObjectURL(res.data)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  },
+
+  // Enrolamiento facial (TensorFlow.js en el navegador)
+  async enrolarRostro(id, descriptorGuardar, descriptorVerificar) {
+    const { data } = await api.post(`/empleados/${id}/enrolar`, {
+      descriptor_guardar: descriptorGuardar,
+      descriptor_verificar: descriptorVerificar,
+    })
+    return data
+  },
+
+  async generarLinkEnrolamiento(id) {
+    const { data } = await api.post(`/empleados/${id}/enrolamiento-link`)
+    return data.data
+  },
+
+  async getIncidencias(id) {
+    const { data } = await api.get(`/empleados/${id}/incidencias`)
+    return data.data || []
+  },
+
   async getAsistencias(id, params = {}) {
     const { data } = await api.get(`/empleados/${id}/asistencias`, { params })
     return data

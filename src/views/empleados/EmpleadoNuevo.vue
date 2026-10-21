@@ -34,7 +34,7 @@
     </div>
 
     <!-- Alert error -->
-    <div v-if="errorMsg" class="alert-error">
+    <div v-if="errorMsg" class="alert-error" style="white-space:pre-line">
       <i class="ti ti-alert-circle" aria-hidden="true"></i>
       {{ errorMsg }}
     </div>
@@ -66,7 +66,7 @@
               <span v-if="errors.paterno" class="err-msg">{{ errors.paterno }}</span>
             </div>
             <div class="field">
-              <label>Apellido materno <span class="req">*</span></label>
+              <label>Apellido materno <span class="hint-opt">(opcional)</span></label>
               <input v-model="form.materno" :class="{ error: errors.materno }" placeholder="LÓPEZ" @input="toUpper('materno')" />
               <span v-if="errors.materno" class="err-msg">{{ errors.materno }}</span>
             </div>
@@ -430,11 +430,23 @@ function onFotoChange(e) {
 
 function toUpper(field) { form[field] = form[field].toUpperCase() }
 
+// Nombre legible de cada campo, para decir CUÁL está mal
+const ETIQUETAS = {
+  nombre: 'Nombre(s)', paterno: 'Apellido paterno', materno: 'Apellido materno',
+  curp: 'CURP', rfc: 'RFC', nss: 'NSS', cp: 'Código postal fiscal', alergias: 'Alergias',
+  escolaridad: 'Escolaridad', tipoSangre: 'Tipo de sangre',
+  nombreEmergencia: 'Nombre de contacto de emergencia', telefonoEmergencia: 'Teléfono de emergencia',
+  parentesco: 'Parentesco', turno: 'Turno', puesto: 'Puesto', periodicidad: 'Periodicidad de pago',
+  fecha_efectiva: 'Fecha de inicio', fecha_ingreso: 'Fecha de ingreso', interbancaria: 'CLABE interbancaria',
+  salario_mensual: 'Salario mensual', fotoEmpleado: 'Foto',
+}
+const resumenErrores = () =>
+  Object.entries(errors).map(([k, msg]) => `${ETIQUETAS[k] || k}: ${msg}`).join('\n')
+
 function validate() {
   const required = [
     ['nombre',             'El nombre es requerido'],
     ['paterno',            'El apellido paterno es requerido'],
-    ['materno',            'El apellido materno es requerido'],
     ['curp',               'El CURP es requerido'],
     ['rfc',                'El RFC es requerido'],
     ['nss',                'El NSS es requerido'],
@@ -470,6 +482,14 @@ function validate() {
     ok = false
   }
 
+  // Mismos formatos que exige el servidor, para avisar antes de enviar
+  const marca = (campo, msg) => { if (form[campo] && !errors[campo]) { errors[campo] = msg; ok = false } }
+  if (!/^\d{11}$/.test(String(form.nss).trim()))   marca('nss', 'Debe tener exactamente 11 dígitos numéricos')
+  if (!/^\d{5}$/.test(String(form.cp).trim()))     marca('cp', 'Debe tener exactamente 5 dígitos numéricos')
+  if (String(form.curp).trim().length !== 18)      marca('curp', `Debe tener 18 caracteres (tiene ${String(form.curp).trim().length})`)
+  if (!/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(String(form.rfc).trim().toUpperCase())) marca('rfc', 'Formato inválido (12 o 13 caracteres: letras, 6 dígitos y homoclave)')
+  if (!/^\d{10}$/.test(String(form.telefonoEmergencia).replace(/\D/g, ''))) marca('telefonoEmergencia', 'Debe tener 10 dígitos')
+
   return ok
 }
 
@@ -478,7 +498,7 @@ async function handleSubmit() {
   successMsg.value = ''
 
   if (!validate()) {
-    errorMsg.value = 'Por favor corrige los campos marcados en rojo.'
+    errorMsg.value = 'Corrige estos campos:\n' + resumenErrores()
     window.scrollTo({ top: 0, behavior: 'smooth' })
     return
   }
@@ -499,7 +519,17 @@ async function handleSubmit() {
     setTimeout(() => router.push('/empleados'), 1500)
 
   } catch (err) {
-    errorMsg.value = err.response?.data?.message || 'Error al guardar el empleado'
+    const d = err.response?.data || {}
+    // El servidor indica campo por campo qué está mal: se marcan en rojo y se listan
+    if (d.errors && typeof d.errors === 'object' && Object.keys(d.errors).length) {
+      Object.keys(errors).forEach(k => delete errors[k])
+      Object.entries(d.errors).forEach(([k, msg]) => { errors[k] = msg })
+      errorMsg.value = 'El servidor rechazó estos campos:\n' + resumenErrores()
+    } else {
+      // 500: suele traer el error de la base de datos (columna y valor), útil para ubicar el dato
+      errorMsg.value = d.message || d.mensaje || (err.response ? `Error ${err.response.status} al guardar el empleado` : 'Sin conexión con el servidor')
+      if (d.mensaje && d.mensaje !== d.message) errorMsg.value += `\nDetalle: ${d.mensaje}`
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' })
   } finally {
     submitting.value = false
@@ -518,6 +548,7 @@ function limpiarForm() {
 </script>
 
 <style scoped>
+.hint-opt { color: var(--text-muted, #7c869b); font-size: 11px; font-weight: 400; }
 :where(.ss-root) { width: 100%; }
 .nuevo-emp { display: flex; flex-direction: column; gap: 14px; }
 .view-header {

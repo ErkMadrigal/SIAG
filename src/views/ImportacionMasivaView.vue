@@ -823,14 +823,28 @@ function xhrConProgreso(url, body, token, onProgress) {
 
     xhr.onerror = () => reject(new Error('Error de red'))
     xhr.onload  = () => {
-      let json = {}
-      try { json = JSON.parse(xhr.responseText || '{}') } catch {}
+      let json = null
+      try { json = JSON.parse(xhr.responseText || '') } catch {}
       if (xhr.status === 403) {
         reject(new Error('CLAVE_INCORRECTA'))
         return
       }
+      // 422 "lote cancelado": el servidor manda el detalle fila por fila.
+      // Se entrega como resultado para mostrar el motivo de cada fila.
+      if (xhr.status === 422 && json && Array.isArray(json.detalle)) {
+        resolve(json)
+        return
+      }
       if (xhr.status < 200 || xhr.status >= 300) {
         reject(new Error(json?.message || json?.mensaje || `HTTP ${xhr.status}`))
+        return
+      }
+      // Si el servidor no devolvió JSON (error de PHP, notice, HTML...) o no trae
+      // conteos, NO lo damos por bueno: antes salía "69 total / 0 insertados /
+      // 0 errores" sin decir nada. Ahora se muestra qué contestó el servidor.
+      if (!json || typeof json !== 'object') {
+        const txt = (xhr.responseText || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300)
+        reject(new Error(json?.message || `Respuesta inesperada del servidor: ${txt || '(vacía)'}`))
         return
       }
       resolve(json)

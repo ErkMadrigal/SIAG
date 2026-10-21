@@ -21,6 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
   const userVistas = computed(() => {
     const nivel = user.value?.nivel ?? user.value?.rol_nivel
     if (nivel === 1 || nivel === 2) return [
+      ...(nivel === 1 ? ['registro_rapido'] : []), 'mapa_asistencias',
       'dashboard', 'empleados', 'colaboradores', 'biometrico',
       'registros', 'prenomina', 'cargar_nomina', 'altas_bajas',
       'nomina_workflow', 'revisar_nomina', 'dispersar_nomina',   
@@ -30,20 +31,36 @@ export const useAuthStore = defineStore('auth', () => {
     ]
     // Biométrico es una vista base: la ven todos los usuarios siempre.
     // Registros NO: depende de los permisos asignados (módulo asistencias).
-    const vistas = user.value?.vistas || []
-    return vistas.includes('biometrico') ? vistas : [...vistas, 'biometrico']
+    const vistas = [...(user.value?.vistas || [])]
+    const extra = ['biometrico']
+    if (nivel === 3) extra.push('empleados', 'incidencias')   // base del operador
+    extra.forEach(v => { if (!vistas.includes(v)) vistas.push(v) })
+    return vistas
   })
 
   // ¿Puede hacer `accion` (leer|crear|actualizar|eliminar) en `modulo`?
   // SuperAdmin siempre. Sesiones viejas sin `permisos` se dejan pasar hasta
   // que vuelvan a iniciar sesión.
+  // Base del Operador (nivel 3): siempre puede esto, además de su matriz.
+  const BASE_NIVEL3 = {
+    empleados:   ['leer', 'crear', 'actualizar'],
+    incidencias: ['leer', 'crear'],
+  }
+
   function can(modulo, accion) {
     const nivel = user.value?.nivel ?? user.value?.rol_nivel
     if (nivel === 1 || nivel === 2) return true
+    if (nivel === 3 && BASE_NIVEL3[modulo]?.includes(accion)) return true
     const p = user.value?.permisos
     if (!p) return true
     return !!p[modulo]?.[accion]
   }
+
+  // Administrador o superior (nivel 1-2)
+  const esAdmin = computed(() => {
+    const nivel = user.value?.nivel ?? user.value?.rol_nivel
+    return nivel === 1 || nivel === 2
+  })
 
   const userName = computed(() => user.value?.nombre || '')
 
@@ -127,7 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     user, accessToken, refreshToken,
-    isAuthenticated, userRole, userVistas, can,
+    isAuthenticated, userRole, userVistas, can, esAdmin,
     userName, userInitials,
     login, logout, refreshAccessToken,
     restoreSession, clearSession,

@@ -5,7 +5,7 @@
     <div class="bio-header">
       <div>
         <h1 class="view-title">Biométrico</h1>
-        <p class="view-sub">Registro de entrada y salida por reconocimiento facial</p>
+        <p class="view-sub">Registro de entrada y salida con reconocimiento facial (TensorFlow.js)</p>
       </div>
     </div>
 
@@ -103,9 +103,19 @@
               <span>Verificación facial</span>
               <span v-if="camaraActiva" class="cam-dot"></span>
             </div>
-            <div class="cam-wrap">
+            <!-- Sin rostro enrolado -->
+            <div v-if="Number(empleado.rostro_enrolado) !== 1 || !descriptorRef" class="cam-wrap sin-enrolar">
+              <i class="ti ti-face-id-error" style="font-size:46px;opacity:.7"></i>
+              <p class="sin-enrolar-t">Este empleado todavía no tiene rostro enrolado</p>
+              <p class="sin-enrolar-s">El registro por reconocimiento facial necesita que primero se enrole su rostro.</p>
+              <button v-if="auth.esAdmin" class="btn-primary-lg" @click="showEnrolar = true">
+                <i class="ti ti-camera" aria-hidden="true"></i> Enrolar rostro ahora
+              </button>
+              <p v-else class="sin-enrolar-s">Solo un administrador puede enrolarlo (desde su perfil, con el botón de enrolar o copiando su link).</p>
+            </div>
+
+            <div v-else class="cam-wrap">
               <video ref="videoRef" autoplay muted playsinline class="cam-video"></video>
-              <canvas ref="canvasRef" style="display:none"></canvas>
 
               <!-- Estado procesando -->
               <div v-if="procesando" class="cam-overlay procesando">
@@ -130,7 +140,7 @@
               <button
                 class="btn-capture"
                 :class="modo"
-                :disabled="procesando || !camaraActiva || resultadoFacial === 'ok'"
+                :disabled="procesando || !camaraActiva || !descriptorRef || resultadoFacial === 'ok'"
                 @click="leerRostro"
               >
                 <i class="ti ti-loader-2 spin" v-if="procesando" aria-hidden="true"></i>
@@ -157,15 +167,38 @@
       </div>
 
     </div>
+
+    <!-- Enrolar rostro desde la vista de biométrico -->
+    <Teleport to="body">
+      <div v-if="showEnrolar && empleado" class="enr-overlay" @click.self="showEnrolar = false">
+        <div class="enr-box">
+          <div class="enr-hdr">
+            <div>
+              <strong>Enrolar rostro</strong>
+              <span>{{ empleado.nombreCompleto }}</span>
+            </div>
+            <button class="enr-x" @click="showEnrolar = false"><i class="ti ti-x"></i></button>
+          </div>
+          <EnrolarRostro :submit="enrolarDesdeAqui" @done="onEnrolado" />
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
+import { useAuthStore } from '@/stores/auth.js'
+import { usePermisos } from '@/composables/usePermisos.js'
 import api from '@/services/api.js'
+import { empleadosService } from '@/services/empleados.service.js'
+import EnrolarRostro from '@/components/ui/EnrolarRostro.vue'
+import { cargarModelos, descriptorDesdeVideo, compararDescriptores } from '@/composables/useFaceEnroll.js'
 
-const ui = useUiStore()
+const ui   = useUiStore()
+const auth = useAuthStore()
+const { can } = usePermisos()
 
 const modo             = ref('entrada')
 const query            = ref('')
@@ -176,13 +209,11 @@ const empleado         = ref(null)
 const errorBusqueda    = ref('')
 const resultadoFacial  = ref('') // '' | 'ok' | 'fail'
 const mensajeResultado = ref('')
+const showEnrolar      = ref(false)
 
 const videoRef  = ref(null)
-const canvasRef = ref(null)
 let   stream    = null
-let   fotoEmpleadoBlob = null
-
-const LUXAND_TOKEN = import.meta.env.VITE_LUXAND_TOKEN || ''
+const descriptorRef = ref(null)   // descriptor ENROLADO del empleado (TensorFlow.js)
 
 onMounted(() => {
   ui.setBreadcrumbs([
@@ -204,7 +235,7 @@ function resetTodo() {
   errorBusqueda.value   = ''
   resultadoFacial.value = ''
   mensajeResultado.value = ''
-  fotoEmpleadoBlob      = null
+  descriptorRef.value   = null
   detenerCamara()
 }
 
@@ -214,32 +245,45 @@ async function buscarEmpleado() {
   buscando.value      = true
   errorBusqueda.value = ''
   empleado.value      = null
+  resultadoFacial.value = ''
+  mensajeResultado.value = ''
 
   try {
-    const { data } = await api.post('/biometrico/buscar', {
-      query:  query.value.trim(),
-      salida: modo.value === 'salida'
-    })
-
+    const { data } = await api.post('/auth/biometrico/buscar', { query: query.value.trim() })
     const emp = data.data?.[0] || data.data
     if (!emp) {
       errorBusqueda.value = data.message || 'Empleado no encontrado'
       return
     }
-
     empleado.value = emp
-
-    // Descargar foto del empleado
-    if (emp.fotos) {
-      fotoEmpleadoBlob = await urlToBlob(emp.fotos)
-    }
-
-    // Iniciar cámara automáticamente
-    await iniciarCamara()
-
+    await prepararReconocimiento()
   } catch (err) {
     errorBusqueda.value = err.response?.data?.message || 'Empleado no encontrado'
   } finally { buscando.value = false }
+}
+
+// Carga el rostro enrolado + modelos + cámara. Si no está enrolado,
+// se ofrece enrolarlo ahí mismo.
+async function prepararReconocimiento() {
+  descriptorRef.value = null
+  const e = empleado.value
+  if (!e || Number(e.rostro_enrolado) !== 1 || !e.descriptor_servidor) return
+
+  try {
+    descriptorRef.value = JSON.parse(e.descriptor_servidor)
+  } catch {
+    descriptorRef.value = null
+    return
+  }
+  mensajeResultado.value = 'Cargando modelos de IA...'
+  try {
+    await cargarModelos()
+    mensajeResultado.value = ''
+    await nextTick()          // espera a que se pinte el <video>
+    await iniciarCamara()
+  } catch (err) {
+    mensajeResultado.value = 'No se pudieron cargar los modelos de reconocimiento'
+  }
 }
 
 // ── Cámara ───────────────────────────────────────────
@@ -247,7 +291,7 @@ async function iniciarCamara() {
   if (camaraActiva.value) return
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1280 } },
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
       audio: false
     })
     if (videoRef.value) {
@@ -269,79 +313,48 @@ function detenerCamara() {
   camaraActiva.value = false
 }
 
-// ── Capturar foto ────────────────────────────────────
-async function capturarFoto() {
-  await iniciarCamara()
-  const video  = videoRef.value
-  const canvas = canvasRef.value
-  canvas.width  = video.videoWidth  || 350
-  canvas.height = video.videoHeight || 260
-  const ctx = canvas.getContext('2d')
-  // Invertir horizontalmente para que coincida con la foto real
-  ctx.translate(canvas.width, 0)
-  ctx.scale(-1, 1)
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-  return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'))
+// ── Enrolar desde aquí si todavía no tiene rostro ────
+const enrolarDesdeAqui = (d1, d2) =>
+  empleadosService.enrolarRostro(empleado.value.id, d1, d2)
+    .catch(e => e?.response?.data || { status: 'error', message: 'Error de conexión' })
+
+async function onEnrolado() {
+  showEnrolar.value = false
+  // recarga el empleado para traer el descriptor recién guardado
+  const q = String(empleado.value.id).padStart(6, '0')
+  query.value = q
+  empleado.value = null
+  await buscarEmpleado()
 }
 
-// ── Convertir URL a Blob ─────────────────────────────
-async function urlToBlob(url) {
-  try {
-    // Intentar via proxy del backend
-    const proxyUrl = `/api/v1/proxy-image?url=${encodeURIComponent(url)}`
-    const res = await fetch(proxyUrl)
-    if (!res.ok) throw new Error('proxy fail')
-    const blob = await res.blob()
-    if (blob.size > 0) return blob
-    throw new Error('blob vacío')
-  } catch {
-    // Fallback directo
-    const res = await fetch(url)
-    return await res.blob()
-  }
-}
-
-// ── Luxand similarity ────────────────────────────────
-async function similarity(face1, face2) {
-  console.log('face1 size:', face1?.size, 'type:', face1?.type)
-  console.log('face2 size:', face2?.size, 'type:', face2?.type)
-
-  const headers = new Headers()
-  headers.append('token', LUXAND_TOKEN)
-  const form = new FormData()
-  form.append('face1', face1, 'face1.jpg')
-  form.append('face2', face2, 'face2.jpg')
-  const res = await fetch('https://api.luxand.cloud/photo/similarity', {
-    method: 'POST', headers, body: form
-  })
-  return res.json()
-}
-
-// ── Leer rostro ──────────────────────────────────────
+// ── Leer rostro (TensorFlow.js) ──────────────────────
 async function leerRostro() {
-  if (!fotoEmpleadoBlob) {
-    mensajeResultado.value = 'No hay foto del empleado cargada'
+  if (!descriptorRef.value) {
+    mensajeResultado.value = 'Este empleado no tiene rostro enrolado'
     return
   }
   procesando.value = true
   resultadoFacial.value  = ''
-  mensajeResultado.value = 'Comparando rostros...'
+  mensajeResultado.value = 'Analizando rostro...'
 
   try {
-    const fotoCapturada = await capturarFoto()
-    const res = await similarity(fotoEmpleadoBlob, fotoCapturada)
+    const inicio = performance.now()
+    const capturado = await descriptorDesdeVideo(videoRef.value)
+    if (!capturado) {
+      resultadoFacial.value  = 'fail'
+      mensajeResultado.value = 'No se detectó el rostro. Acércate y busca buena luz.'
+      return
+    }
+    const r  = compararDescriptores(descriptorRef.value, capturado)
+    const ms = Math.round(performance.now() - inicio)
 
-    if (res?.score !== undefined) {
-      if (res.score >= 0.8999 && res.similar) {
-        resultadoFacial.value = 'ok'
-        await registrarAsistencia()
-      } else {
-        resultadoFacial.value  = 'fail'
-        mensajeResultado.value = 'Rostro no coincide. Acceso denegado.'
-      }
+    if (r.similar) {
+      resultadoFacial.value  = 'ok'
+      mensajeResultado.value = `Coincide — ${(r.score * 100).toFixed(1)}% (${ms} ms)`
+      await registrarAsistencia()
     } else {
       resultadoFacial.value  = 'fail'
-      mensajeResultado.value = 'Error al comparar rostros'
+      mensajeResultado.value = `Rostro no coincide (${(r.score * 100).toFixed(1)}%). Acceso denegado.`
     }
   } catch (err) {
     resultadoFacial.value  = 'fail'
@@ -355,13 +368,20 @@ async function registrarAsistencia() {
     const ip = await obtenerIP()
     const coords = await obtenerGeo()
 
-    await api.post('/biometrico/registro', {
-      id_empleado: empleado.value.id,
-      lat:         coords.lat,
-      lon:         coords.lon,
+    const { data } = await api.post('/biometrico/registro', {
+      id_empleado:   empleado.value.id,
+      lat:           coords.lat,
+      lon:           coords.lon,
       ip,
-      salida:      modo.value === 'salida'
+      salida:        modo.value === 'salida',
+      id_capturista: auth.user?.id ?? 0,
     })
+
+    if (data?.status === 'bloqueado') {
+      resultadoFacial.value  = 'fail'
+      mensajeResultado.value = `No puede salir todavía. Faltan ${data.data?.tiempo_restante ?? ''}`
+      return
+    }
 
     const accion = modo.value === 'entrada' ? 'Entrada' : 'Salida'
     mensajeResultado.value = `✓ ${accion} registrada exitosamente`
@@ -370,7 +390,10 @@ async function registrarAsistencia() {
     setTimeout(() => resetTodo(), 3000)
 
   } catch (err) {
-    mensajeResultado.value = err.response?.data?.message || 'Error al registrar asistencia'
+    const d = err.response?.data
+    mensajeResultado.value = err.response?.status === 423
+      ? `No puede salir todavía. Faltan ${d?.data?.tiempo_restante ?? ''}`
+      : (d?.message || (err.code === 1 ? 'Activa la ubicación (GPS) del navegador' : 'Error al registrar asistencia'))
     resultadoFacial.value  = 'fail'
   }
 }
@@ -588,4 +611,15 @@ function getInitials(nombre) {
   .bio-two-col { grid-template-columns: 1fr; }
   .emp-card    { flex-direction: column; align-items: center; text-align: center; }
 }
+
+.cam-wrap.sin-enrolar { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  text-align: center; padding: 28px 18px; aspect-ratio: auto; min-height: 260px; max-height: none; }
+.sin-enrolar-t { margin: 0; font-size: 14px; font-weight: 600; color: var(--tx0); }
+.sin-enrolar-s { margin: 0; font-size: 12px; color: var(--tx2); max-width: 300px; }
+.enr-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,.6); display: grid; place-items: center; padding: 16px; }
+.enr-box { width: 100%; max-width: 480px; background: var(--bg1); border: 0.5px solid var(--bdr2); border-radius: 18px; padding: 18px; max-height: 94vh; overflow-y: auto; }
+.enr-hdr { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+.enr-hdr strong { display: block; font-size: 15px; color: var(--tx0); }
+.enr-hdr span { font-size: 12px; color: var(--tx2); }
+.enr-x { background: none; border: none; color: var(--tx2); font-size: 18px; cursor: pointer; }
 </style>

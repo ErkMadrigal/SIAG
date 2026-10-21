@@ -50,6 +50,11 @@
         </button>
       </div>
       <div class="sec-body">
+        <div class="field" style="max-width:520px;margin-bottom:12px">
+          <label>Número de empleado (vincular)</label>
+          <EmpleadoPicker v-model="form.id_empleado" @elegido="alElegirEmpleado" />
+          <span class="err-msg" style="color:var(--tx2)">Si ya es empleado, vincúlalo: así comparte su número de empleado y se autollenan sus datos.</span>
+        </div>
         <div class="field-grid-4">
           <div class="field">
             <label>Nombre(s) <span class="req">*</span></label>
@@ -149,6 +154,7 @@
           <thead>
             <tr>
               <th style="width:50px">ID</th>
+              <th style="width:110px">No. empleado</th>
               <th style="width:200px">Nombre</th>
               <th style="width:130px">Usuario</th>
               <th style="width:190px">Correo</th>
@@ -158,8 +164,13 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="u in paginatedUsers" :key="u.id">
+            <tr v-for="u in paginatedUsers" :key="u.id" class="fila-click" @click="perfilUser = u">
               <td class="id-cell">{{ String(u.id).padStart(3,'0') }}</td>
+              <td @click.stop>
+                <span v-if="u.id_empleado" class="mono" :title="u.empleado_nombre">{{ String(u.id_empleado).padStart(6,'0') }}</span>
+                <button v-else-if="can('colaboradores', 'actualizar')" class="link-btn" @click="abrirVincular(u)"><i class="ti ti-link"></i> Vincular</button>
+                <span v-else style="color:var(--tx3);font-size:11px">—</span>
+              </td>
               <td>
                 <div class="emp-cell">
                   <div class="emp-av" :style="{ background: getAvatarBg(u.id), color: getAvatarColor(u.id) }">
@@ -190,6 +201,9 @@
                         <button v-if="can('colaboradores', 'actualizar')" class="icon-btn" @click="abrirMatriz('edit', u)" title="Editar permisos">
                             <i class="ti ti-shield-lock"></i>
                         </button>
+                        <button v-if="can('colaboradores', 'actualizar')" class="icon-btn" @click="abrirVincular(u)" title="Vincular con empleado">
+                            <i class="ti ti-link"></i>
+                        </button>
                         <button v-if="can('colaboradores', 'actualizar')" class="icon-btn accent" @click="abrirCambiarPass(u)" title="Cambiar contraseña">
                             <i class="ti ti-key"></i>
                         </button>
@@ -201,7 +215,7 @@
                 </td>
             </tr>
             <tr v-if="!paginatedUsers.length">
-              <td colspan="7" class="empty-row">No se encontraron colaboradores</td>
+              <td colspan="8" class="empty-row">No se encontraron colaboradores</td>
             </tr>
           </tbody>
         </table>
@@ -253,15 +267,21 @@
               <div class="skeleton-row" v-for="i in 6" :key="i"></div>
             </div>
             <div v-else class="tabla-matriz-wrap">
+              <div class="matriz-tools">
+                <button class="btn-sm" @click="marcarTodo(true)"><i class="ti ti-checks"></i> Marcar todos</button>
+                <button class="btn-sm" @click="marcarTodo(false)"><i class="ti ti-square-off"></i> Quitar todos</button>
+                <button class="btn-sm" @click="aplicarDefecto"><i class="ti ti-wand"></i> Permisos por defecto</button>
+              </div>
               <table class="tabla-matriz">
                 <thead>
                   <tr>
                     <th style="width:40px">#</th>
                     <th>Módulo</th>
-                    <th class="tc">Ver</th>
-                    <th class="tc">Crear</th>
-                    <th class="tc">Actualizar</th>
-                    <th class="tc">Eliminar</th>
+                    <th class="tc th-col" title="Marcar/quitar toda la columna" @click="toggleColumna('ver')">Ver</th>
+                    <th class="tc th-col" title="Marcar/quitar toda la columna" @click="toggleColumna('crear')">Crear</th>
+                    <th class="tc th-col" title="Marcar/quitar toda la columna" @click="toggleColumna('actualizar')">Actualizar</th>
+                    <th class="tc th-col" title="Marcar/quitar toda la columna" @click="toggleColumna('eliminar')">Eliminar</th>
+                    <th class="tc">Todo el módulo</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,6 +304,11 @@
                       <input type="checkbox" v-model="row.eliminar" />
                       <span class="slider"></span>
                     </label></td>
+                    <td class="tc">
+                      <button class="btn-todo" :class="{ on: filaCompleta(row) }" @click="toggleFila(row)">
+                        {{ filaCompleta(row) ? 'Quitar' : 'Marcar' }} todo
+                      </button>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -367,6 +392,32 @@
   </div>
 </Teleport>
 
+    <ColaboradorPerfil v-if="perfilUser" :usuario="perfilUser" @close="perfilUser = null" />
+
+    <!-- MODAL VINCULAR EMPLEADO -->
+    <Teleport to="body">
+    <div v-if="modalVincular" class="modal-overlay" @click.self="modalVincular = false">
+      <div class="accion-box">
+        <div class="modal-hdr">
+          <div>
+            <p class="modal-title">{{ userAccion?.nombre_completo }}</p>
+            <p class="modal-sub">Vincular con su número de empleado</p>
+          </div>
+          <button class="modal-close" @click="modalVincular = false"><i class="ti ti-x"></i></button>
+        </div>
+        <div class="accion-body">
+          <EmpleadoPicker v-model="vincularId" />
+          <p v-if="vincularError" class="err-msg">{{ vincularError }}</p>
+        </div>
+        <div class="modal-footer">
+          <button v-if="userAccion?.id_empleado" class="btn-sm" :disabled="savingAccion" @click="guardarVinculo(null)">Quitar vínculo</button>
+          <button class="btn-sm" @click="modalVincular = false" :disabled="savingAccion">Cancelar</button>
+          <button class="btn-primary-lg" :disabled="savingAccion || !vincularId" @click="guardarVinculo(vincularId)">Vincular</button>
+        </div>
+      </div>
+    </div>
+    </Teleport>
+
     <!-- MODAL DAR DE BAJA -->
     <Teleport to="body">
     <div v-if="modalBaja" class="modal-overlay" @click.self="modalBaja = false">
@@ -414,6 +465,8 @@ import { usePermisos } from '@/composables/usePermisos.js'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
 import { usuariosService } from '@/services/usuarios.service.js'
+import EmpleadoPicker from '@/components/ui/EmpleadoPicker.vue'
+import ColaboradorPerfil from '@/components/ui/ColaboradorPerfil.vue'
 const { can } = usePermisos()
 
 const ui = useUiStore()
@@ -441,8 +494,12 @@ const modalBaja  = ref(false)
 const userAccion = ref(null)
 const nuevasCreds = ref(null)
 const savingAccion = ref(false)
+const perfilUser = ref(null)
+const modalVincular = ref(false)
+const vincularId = ref(null)
+const vincularError = ref('')
 
-const form = reactive({ nombre: '', paterno: '', materno: '', correo: '', id_rol_sistema: 3 })
+const form = reactive({ nombre: '', paterno: '', materno: '', correo: '', id_rol_sistema: 3, id_empleado: null })
 const errors = reactive({})
 
 // matriz local para nuevo usuario (antes de crear)
@@ -523,16 +580,62 @@ const resumenPermisos = computed(() => {
   }).join(' | ')
 })
 
+// Al elegir un empleado se rellenan nombre y apellidos
+function alElegirEmpleado(emp) {
+  if (!emp) return
+  if (emp.n) form.nombre = String(emp.n).toUpperCase()
+  if (emp.paterno) form.paterno = String(emp.paterno).toUpperCase()
+  form.materno = String(emp.materno || '').toUpperCase() || form.materno
+}
+
+function abrirVincular(u) {
+  userAccion.value = u; vincularId.value = null; vincularError.value = ''; modalVincular.value = true
+}
+async function guardarVinculo(idEmp) {
+  savingAccion.value = true; vincularError.value = ''
+  try {
+    await usuariosService.vincularEmpleado(userAccion.value.id, idEmp)
+    modalVincular.value = false
+    await loadUsers()
+  } catch (err) {
+    vincularError.value = err.response?.data?.message || 'No se pudo vincular'
+  } finally { savingAccion.value = false }
+}
+
 // Abrir formulario nuevo
 function abrirNuevo() {
   mostrarForm.value = true
   Object.keys(form).forEach(k => form[k] = ''); form.id_rol_sistema = 3
   Object.keys(errors).forEach(k => delete errors[k])
   credenciales.value = null
-  if (matrizNew.value.length === 0 && roles.value.length) {
-    matrizNew.value = buildEmptyMatrix()
+  if (roles.value.length) {
+    matrizNew.value = buildDefaultMatrix()   // siempre arranca con los permisos por defecto
   }
 }
+
+// Permisos que SIEMPRE lleva por defecto un colaborador nuevo (nivel 3)
+const PERMISOS_DEFECTO = {
+  empleados:   { ver: true, crear: true, actualizar: true },
+  incidencias: { ver: true, crear: true, actualizar: true, eliminar: true },
+  asistencias: { ver: true, crear: true, actualizar: true, eliminar: true },
+  mesa_ayuda:  { ver: true, crear: true, actualizar: true, eliminar: true },
+  camaras:     { ver: true, crear: true, actualizar: true, eliminar: true },
+}
+
+function buildDefaultMatrix() {
+  return buildEmptyMatrix().map(r => ({ ...r, ...(PERMISOS_DEFECTO[r.rol.toLowerCase()] || {}) }))
+}
+
+// ── Marcar masivo en la matriz ──
+const COLS = ['ver', 'crear', 'actualizar', 'eliminar']
+const filaCompleta = r => COLS.every(c => r[c])
+function toggleFila(r) { const v = !filaCompleta(r); COLS.forEach(c => { r[c] = v }) }
+function marcarTodo(v) { matrizData.value.forEach(r => COLS.forEach(c => { r[c] = v })) }
+function toggleColumna(col) {
+  const v = !matrizData.value.every(r => r[col])
+  matrizData.value.forEach(r => { r[col] = v })
+}
+function aplicarDefecto() { matrizData.value = buildDefaultMatrix() }
 
 function buildEmptyMatrix() {
   return roles.value.map(r => ({
@@ -638,7 +741,7 @@ async function abrirMatriz(mode, user = null) {
   if (mode === 'new') {
     if (!matrizNew.value.length) {
       if (!roles.value.length) await loadRoles()
-      matrizNew.value = buildEmptyMatrix()
+      matrizNew.value = buildDefaultMatrix()
     }
     matrizData.value = matrizNew.value
     return
@@ -701,10 +804,12 @@ async function handleCreate() {
       materno: form.materno,
       correo:  form.correo,
       id_rol_sistema: form.id_rol_sistema,
+      id_empleado: form.id_empleado || null,
     })
 
-    if (res.last_insert_id && rolesPayload.length) {
-      await usuariosService.setRoles(res.last_insert_id, rolesPayload)
+    const nuevoId = res.last_insert_id || res.data?.id
+    if (nuevoId && rolesPayload.length) {
+      await usuariosService.setRoles(nuevoId, rolesPayload)
     }
 
     credenciales.value = {
@@ -714,7 +819,7 @@ async function handleCreate() {
 
     mostrarForm.value = false
     Object.keys(form).forEach(k => form[k] = ''); form.id_rol_sistema = 3
-    matrizNew.value = buildEmptyMatrix()
+    matrizNew.value = buildDefaultMatrix()
     await loadUsers()
   } catch (err) {
     errors.correo = err.response?.data?.message || 'Error al crear el colaborador'
@@ -746,6 +851,9 @@ function getRoles(u) {
 </script>
 
 <style scoped>
+.fila-click { cursor: pointer; }
+.fila-click:hover td { background: var(--bg2); }
+.link-btn { background: none; border: 0.5px dashed var(--bdr2); color: var(--acc, #4f8ef7); border-radius: 8px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: inherit; }
 :where(.ss-root) { width: 100%; }
 
 .icon-btn.accent { color: var(--amb); }
@@ -1075,4 +1183,10 @@ input:checked + .slider::before { transform: translateX(16px); }
   .field-grid-4 { grid-template-columns: 1fr 1fr; }
   .tabla-matriz th:nth-child(1), .tabla-matriz td:nth-child(1) { display: none; }
 }
+.matriz-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.th-col { cursor: pointer; user-select: none; }
+.th-col:hover { color: var(--acc); }
+.btn-todo { padding: 5px 10px; border-radius: 8px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--tx1, var(--tx0));
+  font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; }
+.btn-todo.on { background: rgba(79,142,247,.15); border-color: var(--acc); color: var(--acc); }
 </style>

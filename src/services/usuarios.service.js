@@ -16,6 +16,16 @@ export const usuariosService = {
     return data
   },
 
+  async buscarEmpleado(q) {
+    const { data } = await api.get('/usuarios/buscar-empleado', { params: { q } })
+    return data.data || []
+  },
+
+  async vincularEmpleado(id, idEmpleado) {
+    const { data } = await api.patch(`/usuarios/${id}/empleado`, { id_empleado: idEmpleado })
+    return data
+  },
+
   async getRoles() {
     const { data } = await api.get('/usuarios/roles')
     return data.data || []

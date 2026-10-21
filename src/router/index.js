@@ -26,6 +26,8 @@ export const VISTAS_MAP = {
   altas_bajas:   { path: '/altas-bajas',     label: 'Altas y Bajas', icon: 'ti-arrows-up-down',    section: 'Reportes' },
   
   incidencias:   { path: '/incidencias',     label: 'Incidencias',   icon: 'ti-alert-triangle',    section: 'Reportes' },
+  mapa_asistencias: { path: '/mapa-asistencias', label: 'Mapa de asistencias', icon: 'ti-map-pin', section: 'Asistencias' },
+  registro_rapido:  { path: '/registro-rapido',   label: 'Registro rápido',   icon: 'ti-wand', section: 'Sistema' },
   camaras:       { path: '/camaras',         label: 'Cámaras',       icon: 'ti-camera',            section: 'Cámaras' },
   mesa_ayuda:    { path: '/mesa-ayuda',      label: 'Mesa de ayuda', icon: 'ti-headset',           section: 'Mesa de ayuda' },
   hospitales:    { path: '/hospitales',      label: 'Hospitales',    icon: 'ti-building-hospital', section: 'Administración' },
@@ -42,6 +44,13 @@ const routes = [
     name: 'login',
     component: LoginView,
     meta: { public: true }
+  },
+  {
+    // Link de enrolamiento facial para el empleado (sin login)
+    path: '/enrolar/:token',
+    name: 'enrolar-publico',
+    component: () => import('@/views/EnrolarPublicoView.vue'),
+    meta: { openPublic: true },
   },
   {
     path: '/buscar-empleado',
@@ -69,6 +78,8 @@ const routes = [
 
       { path: 'altas-bajas',           name: 'altas-bajas',       component: () => import('@/views/AltasBajasView.vue'),                                  meta: { vista: 'altas_bajas' } },
       { path: 'incidencias',           name: 'incidencias',       component: () => import('@/views/IncidenciasView.vue'),                                  meta: { vista: 'incidencias' } },
+      { path: 'mapa-asistencias',      name: 'mapa-asistencias',  component: () => import('@/views/MapaAsistenciasView.vue'),                             meta: { vista: 'mapa_asistencias' } },
+      { path: 'registro-rapido',       name: 'registro-rapido',   component: () => import('@/views/RegistroRapidoView.vue'),                              meta: { vista: 'registro_rapido' } },
       { path: 'camaras',               name: 'camaras',           component: () => import('@/views/camaras/CamarasView.vue'),                              meta: { vista: 'camaras' } },
       { path: 'mesa-ayuda',            name: 'mesa-ayuda',        component: () => import('@/views/mesa-ayuda/MesaAyudaView.vue'),                         meta: { vista: 'mesa_ayuda' } },
       { path: 'hospitales',            name: 'hospitales',        component: () => import('@/views/PlaceholderView.vue'),                                  meta: { vista: 'hospitales' } },
@@ -108,6 +119,8 @@ router.beforeEach((to, from, next) => {
   if (!auth.user && auth.accessToken) {
     auth.restoreSession()
   }
+
+  if (to.meta.openPublic) return next()
 
   if (to.meta.public) {
     if (auth.isAuthenticated) return next('/')

@@ -128,11 +128,11 @@ async function abrir() {
   abierto.value = true
   activo.value = Math.max(0, filtradas.value.findIndex(esSel))
   window.addEventListener('scroll', onScroll, true)
-  window.addEventListener('resize', cerrar)
-  document.addEventListener('mousedown', onFuera, true)
+  window.addEventListener('resize', reposicionar)
+  document.addEventListener('pointerdown', onFuera, true)
   await nextTick()
-  if (mostrarBuscador.value) inputRef.value?.focus()
-  else panelRef.value?.focus()
+  if (mostrarBuscador.value) inputRef.value?.focus({ preventScroll: true })
+  else panelRef.value?.focus({ preventScroll: true })
   scrollActivo()
 }
 
@@ -140,13 +140,19 @@ function cerrar() {
   if (!abierto.value) return
   abierto.value = false
   window.removeEventListener('scroll', onScroll, true)
-  window.removeEventListener('resize', cerrar)
-  document.removeEventListener('mousedown', onFuera, true)
+  window.removeEventListener('resize', reposicionar)
+  document.removeEventListener('pointerdown', onFuera, true)
 }
 
+// En móvil, al enfocar el buscador sale el teclado (resize) y el navegador
+// puede hacer scroll: cerrar ahí hacía que la lista se abriera y se cerrara
+// al instante. Ahora solo se reposiciona.
+function reposicionar() {
+  if (abierto.value) calcularPos()
+}
 function onScroll(e) {
   if (panelRef.value && panelRef.value.contains(e.target)) return
-  cerrar()
+  reposicionar()
 }
 function onFuera(e) {
   if (panelRef.value?.contains(e.target) || triggerRef.value?.contains(e.target)) return
@@ -185,8 +191,8 @@ function onBuscar() { activo.value = filtradas.value.length ? 0 : -1 }
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScroll, true)
-  window.removeEventListener('resize', cerrar)
-  document.removeEventListener('mousedown', onFuera, true)
+  window.removeEventListener('resize', reposicionar)
+  document.removeEventListener('pointerdown', onFuera, true)
 })
 </script>
 
