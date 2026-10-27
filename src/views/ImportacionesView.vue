@@ -83,6 +83,14 @@
             <p>Se cargarán servicios y ubicaciones desde un archivo Excel predefinido</p>
           </div>
         </div>
+
+        <div class="imp-item clickable" @click="triggerUpload('servicios_upsert')">
+          <div class="imp-icon green"><i class="ti ti-refresh" aria-hidden="true"></i></div>
+          <div class="imp-info">
+            <h3>Servicios: insertar y actualizar <i class="ti ti-arrow-right imp-arrow" aria-hidden="true"></i></h3>
+            <p>Excel con columna id: si existe se actualiza, si no existe o va vacío se inserta</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -168,6 +176,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui.js'
+import { API_BASE } from '@/services/api.js'
 import PlantillaDinamicaModal from '@/components/ui/PlantillaDinamicaModal.vue' 
 
 const mostrarPlantillaModal = ref(false)
@@ -205,7 +214,7 @@ onMounted(async () => {
 async function cargarHistorial() {
   const token = localStorage.getItem('access_token')
   try {
-    const resp = await fetch('/api/v1/importaciones/historial?limit=50', {
+    const resp = await fetch(`${API_BASE}/importaciones/historial?limit=50`, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
     const json = await resp.json()

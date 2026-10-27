@@ -326,7 +326,7 @@
           </div>
           <div class="rstat amber">
             <span class="rstat-num">{{ resultado.duplicados }}</span>
-            <span>Duplicados</span>
+            <span>{{ tipo === 'servicios_upsert' ? 'Actualizados' : 'Duplicados' }}</span>
           </div>
           <div class="rstat red">
             <span class="rstat-num">{{ resultado.errores }}</span>
@@ -362,12 +362,12 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui.js'
 import * as XLSX from 'xlsx'
+import { API_BASE } from '@/services/api.js'   // absoluta en producción (https://serprosep.vinculasag.com/api/v1)
 
 const route  = useRoute()
 const router = useRouter()
 const ui     = useUiStore()
 
-const API_BASE = '/api/v1'
 const FIRMA_ESPERADA = 'SIAG2026*'
 
 const fileInputRef  = ref(null)
@@ -408,6 +408,12 @@ const CONFIGS = {
     descripcion: 'Carga masiva de servicios y ubicaciones desde archivo Excel predefinido',
     endpoint:    '/catalogos/servicios/masivo',
     action:      'servicio_masivo',
+  },
+  servicios_upsert: {
+    titulo:      'Servicios: insertar y actualizar',
+    descripcion: 'Excel con columnas id, servicio, elementos, ubicacion, cp, latitud, longitud, id_cliente, id_empresa, id_partida, id_zona, estatus. Si el id existe se actualiza (las celdas vacías no se tocan); si no existe o va vacío se inserta.',
+    endpoint:    '/catalogos/servicios/upsert-masivo',
+    action:      'servicio_upsert_masivo',
   },
   nuevos_directo: {
     titulo:      'Carga directa (sin validar)',
@@ -732,7 +738,7 @@ function procesarArchivo(file) {
     const data     = new Uint8Array(e.target.result)
     const workbook = XLSX.read(data, { type: 'array', cellDates: true, dateNF: 'yyyy-mm-dd' })
 
-    if (!validarFirma(workbook)) {
+    if (tipo.value !== 'servicios_upsert' && !validarFirma(workbook)) {
       archivo.value = null
       return
     }
@@ -745,7 +751,9 @@ function procesarArchivo(file) {
 
     filas.value = rows
 
-    if (tipo.value === 'ubicaciones') {
+    if (tipo.value === 'servicios_upsert') {
+      validarServiciosUpsert(rows)
+    } else if (tipo.value === 'ubicaciones') {
       validarServiciosFrontend(rows)
     } else if (tipo.value === 'nuevos_directo') {
       mapearSinValidar(rows)
@@ -969,6 +977,49 @@ function validarFrontend(rows) {
   validado.value   = true
 }
 
+// ── Validación para servicios (insertar + actualizar por id) ──────
+function validarServiciosUpsert(rows) {
+  const errs = []
+  datosValidados = []
+  const vistos = new Set()
+  // acepta encabezados con cualquier mayúscula/acento: "ID", "Id_Cliente", "Ubicación"...
+  const k = o => Object.fromEntries(Object.entries(o).map(([h, v]) =>
+    [String(h).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''), v]))
+
+  rows.forEach((raw, i) => {
+    const n = i + 2
+    const f = k(raw)
+    const id = safe(f.id).replace(/\D/g, '')
+    const servicio = normalizarTexto(f.servicio)
+    const cp = safe(f.cp).replace(/\D/g, '')
+    const lat = safe(f.latitud)
+    const lon = safe(f.longitud)
+    const estatus = safe(f.estatus)
+
+    if (id && vistos.has(id)) errs.push({ fila: n, mensaje: `id ${id} repetido en el archivo` })
+    if (id) vistos.add(id)
+    if (cp && !/^\d{5}$/.test(cp)) errs.push({ fila: n, mensaje: `CP inválido (${cp}); debe tener 5 dígitos` })
+    if (lat && isNaN(Number(lat))) errs.push({ fila: n, mensaje: `latitud inválida (${lat})` })
+    if (lon && isNaN(Number(lon))) errs.push({ fila: n, mensaje: `longitud inválida (${lon})` })
+    if (estatus && !['0', '1'].includes(estatus)) errs.push({ fila: n, mensaje: 'estatus debe ser 0 o 1' })
+    if (!id && !servicio) errs.push({ fila: n, mensaje: 'Sin id: el servicio (nombre) es obligatorio para crearlo' })
+
+    datosValidados.push({
+      _row: n, id, servicio,
+      elementos: safe(f.elementos).replace(/\D/g, ''),
+      ubicacion: normalizarTexto(f.ubicacion),
+      cp, latitud: lat, longitud: lon,
+      id_cliente: safe(f.idcliente), id_empresa: safe(f.idempresa),
+      id_partida: safe(f.idpartida), id_zona: safe(f.idzona),
+      estatus,
+    })
+  })
+
+  errores.value  = errs
+  erroresUltimos = errs
+  validado.value = true
+}
+
 // ── Validación frontend para servicios/ubicaciones ──────
 function validarServiciosFrontend(rows) {
   const errs = []
@@ -1053,7 +1104,7 @@ async function enviar(validateOnly = false) {
     progresoPct.value   = Math.round((i / totalLotes) * 100)
 
     const payload = JSON.stringify(
-      tipo.value === 'ubicaciones'
+      (tipo.value === 'ubicaciones' || tipo.value === 'servicios_upsert')
         ? {
             action:         config.value.action,
             validate_only:  validateOnly,
@@ -1075,7 +1126,7 @@ async function enviar(validateOnly = false) {
 
       totalAcum      += res.total      ?? lote.length
       insertadosAcum += res.insertados ?? 0
-      duplicadosAcum += res.duplicados ?? 0
+      duplicadosAcum += res.actualizados ?? res.duplicados ?? 0
       erroresAcum    += res.errores    ?? 0
 
       const detalleLote = Array.isArray(res.detalle) ? res.detalle : []
@@ -1091,7 +1142,7 @@ async function enviar(validateOnly = false) {
 
 
         if (!validateOnly) {
-          const tablaDestino = tipo.value === 'ubicaciones' ? 'servicios' : 'empleados'
+          const tablaDestino = (tipo.value === 'ubicaciones' || tipo.value === 'servicios_upsert') ? 'servicios' : 'empleados'
           try {
             await fetch(`${API_BASE}/importaciones/historial`, {
               method: 'POST',
@@ -1163,14 +1214,25 @@ function xhrSimple(url, body, token) {
 
     xhr.onerror = () => reject(new Error('Error de red'))
     xhr.onload  = () => {
-      let json = {}
-      try { json = JSON.parse(xhr.responseText || '{}') } catch {}
+      let json = null
+      try { json = JSON.parse(xhr.responseText || 'null') } catch {}
       if (xhr.status === 403) {
         reject(new Error('CLAVE_INCORRECTA'))
         return
       }
+      // 422 con detalle por fila (umbral de errores superado): se devuelve para mostrar las filas
+      if (xhr.status === 422 && json && Array.isArray(json.detalle)) {
+        resolve(json)
+        return
+      }
       if (xhr.status < 200 || xhr.status >= 300) {
         reject(new Error(json?.message || json?.mensaje || `HTTP ${xhr.status}`))
+        return
+      }
+      // 200 pero la respuesta no es el JSON esperado (ej. aviso de PHP antes del JSON o página de error)
+      if (!json || typeof json !== 'object' || json.total === undefined) {
+        const txt = String(xhr.responseText || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300)
+        reject(new Error(`Respuesta inesperada del servidor${txt ? ': ' + txt : ' (vacía)'}`))
         return
       }
       resolve(json)

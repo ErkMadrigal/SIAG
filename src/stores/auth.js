@@ -4,6 +4,7 @@ import { authService } from '@/services/auth.service.js'
 import router from '@/router/index.js'
 import { sesionExpirada } from '@/composables/useInactividad.js'
 import axios from 'axios'
+import { API_BASE } from '@/services/api.js'
 
 export const useAuthStore = defineStore('auth', () => {
   const user         = ref(null)
@@ -98,7 +99,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function refreshAccessToken() {
     try {
       // Usar axios directo — NO api.js para evitar el interceptor de 401
-      const { data } = await axios.post('/api/v1/auth/refresh', {
+      const { data } = await axios.post(`${API_BASE}/auth/refresh`, {
         refresh_token: refreshToken.value
       }, {
         headers: { 'Content-Type': 'application/json' }

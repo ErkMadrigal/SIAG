@@ -61,6 +61,11 @@
             </span>
           </button>
         </form>
+
+        <div class="login-alt">
+          <router-link to="/asistencia" class="btn-asist"><i class="ti ti-fingerprint"></i> Tomar asistencia</router-link>
+          <a :href="apkUrl" :download="apkUrl.split('/').pop()" class="btn-apk"><i class="ti ti-device-mobile-down"></i> Descargar app Android</a>
+        </div>
       </div>
 
       <p class="login-footer">SIAG SIA v1.0 · {{ new Date().getFullYear() }}</p>
@@ -91,6 +96,12 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
+
+import axios from 'axios'
+import { API_BASE } from '@/services/api.js'
+// URL del APK: se toma de version.json (así siempre baja la última versión)
+const apkUrl = ref(import.meta.env.BASE_URL + 'descarga/kiosko_SIAG.apk')
+axios.get(API_BASE + '/app/version').then(r => { if (r.data?.data?.apk_url) apkUrl.value = r.data.data.apk_url }).catch(() => {})
 import { sesionExpirada, resetSesionExpirada } from '@/composables/useInactividad.js'
 
 onMounted(() => {
@@ -333,4 +344,10 @@ async function handleLogin() {
     margin-bottom: 28px;
   }
 }
+
+.login-alt { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--bdr, #263046); }
+.btn-asist, .btn-apk { height: 42px; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 500; text-decoration: none; }
+.btn-asist { background: rgba(52,211,153,.14); color: #34d399; border: 1px solid rgba(52,211,153,.35); }
+.btn-apk { background: transparent; color: var(--tx2, #9aa4b2); border: 1px solid var(--bdr, #263046); }
+.btn-asist:hover { background: rgba(52,211,153,.22); } .btn-apk:hover { color: #fff; }
 </style>

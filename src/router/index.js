@@ -14,7 +14,7 @@ export const VISTAS_MAP = {
   dashboard:     { path: '/dashboard',       label: 'Dashboard',     icon: 'ti-layout-dashboard',  section: null },
   empleados:     { path: '/empleados',       label: 'Empleados',     icon: 'ti-users',             section: 'Empleados' },
   colaboradores: { path: '/colaboradores',   label: 'Colaborador',   icon: 'ti-star',              section: 'Empleados' },
-  biometrico:    { path: '/biometrico',      label: 'Biométrico',    icon: 'ti-fingerprint',       section: 'Asistencias' },
+  biometrico:    { path: '/biometrico',      label: 'Tomar asistencia',    icon: 'ti-fingerprint',       section: 'Asistencias' },
   registros:     { path: '/registros',       label: 'Registros',     icon: 'ti-clipboard-list',    section: 'Asistencias' },
   prenomina:     { path: '/prenomina',       label: 'Pre-nómina',    icon: 'ti-chart-bar',         section: 'Reportes' },
   cargar_nomina: { path: '/cargar-nomina', label: 'Cargar nómina', icon: 'ti-cloud-upload', section: 'Reportes' },
@@ -50,6 +50,13 @@ const routes = [
     path: '/enrolar/:token',
     name: 'enrolar-publico',
     component: () => import('@/views/EnrolarPublicoView.vue'),
+    meta: { openPublic: true },
+  },
+  {
+    // Tomar asistencia desde el navegador (sin login)
+    path: '/asistencia',
+    name: 'asistencia-publica',
+    component: () => import('@/views/AsistenciaPublicaView.vue'),
     meta: { openPublic: true },
   },
   {

@@ -4,10 +4,12 @@
     <!-- Header con tabs -->
     <div class="bio-header">
       <div>
-        <h1 class="view-title">Biométrico</h1>
+        <h1 class="view-title">Tomar asistencia</h1>
         <p class="view-sub">Registro de entrada y salida con reconocimiento facial (TensorFlow.js)</p>
       </div>
     </div>
+
+    <DescargarApp />
 
     <!-- Tabs entrada/salida -->
     <div class="tabs-bar">
@@ -194,6 +196,7 @@ import { usePermisos } from '@/composables/usePermisos.js'
 import api from '@/services/api.js'
 import { empleadosService } from '@/services/empleados.service.js'
 import EnrolarRostro from '@/components/ui/EnrolarRostro.vue'
+import DescargarApp from '@/components/ui/DescargarApp.vue'
 import { cargarModelos, descriptorDesdeVideo, compararDescriptores } from '@/composables/useFaceEnroll.js'
 
 const ui   = useUiStore()
@@ -449,7 +452,7 @@ function getInitials(nombre) {
 .bio-two-col   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
 /* Sección */
-.sec { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 12px; overflow: hidden; }
+.sec { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 28px rgba(0,0,0,.18); }
 .sec-hdr {
   display: flex; align-items: center; gap: 8px;
   padding: 12px 16px; border-bottom: 0.5px solid var(--bdr);

@@ -209,7 +209,7 @@
       <div class="sec-body">
         <div class="field-grid">
           
-          <div class="field field-full">
+          <div class="field field-full" v-if="!esOperador">
             <label>Modo de sueldo</label>
             <div class="modo-sueldo-toggle">
               <button type="button" :class="{ active: trabajo.modo_sueldo === 'tabulador' }" @click="trabajo.modo_sueldo = 'tabulador'">
@@ -220,7 +220,7 @@
               </button>
             </div>
           </div>
-          <div class="field" v-if="trabajo.modo_sueldo === 'salario'">
+          <div class="field" v-if="!esOperador && trabajo.modo_sueldo === 'salario'">
             <label>Salario mensual</label>
             <input type="number" v-model.number="trabajo.salario_mensual" step="0.01" placeholder="0.00" />
           </div>
@@ -705,11 +705,12 @@ const AVATAR_COLORS = [
   { color: '#a855f7', bg: '#2d1b4d' },
 ]
 
-// Operador (nivel 3): solo datos personales y contacto de emergencia.
-// Trabajo (puesto/turno/sueldo) y Banco quedan para nivel 2 o superior.
+// Operador (nivel 3): datos personales, contacto de emergencia, laborales y foto.
+// El Banco queda para nivel 2 o superior.
+const esOperador = computed(() => (auth.user?.nivel ?? auth.user?.rol_nivel) > 2)
 const tabsVisibles = computed(() => {
   const nivel = auth.user?.nivel ?? auth.user?.rol_nivel
-  return nivel > 2 ? tabs.filter(t => t.key === 'personal') : tabs
+  return nivel > 2 ? tabs.filter(t => ['personal', 'trabajo', 'foto'].includes(t.key)) : tabs
 })
 
 const tabs = [
