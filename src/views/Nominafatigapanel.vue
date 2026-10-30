@@ -278,7 +278,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
-import { nominaFatigaService } from '@/services/nominaFatiga.service.js'
+import { nominaFatigaService } from '@/services/Nominafatiga.service.js'
 
 const ui = useUiStore()
 

@@ -62,7 +62,7 @@ const routes = [
   {
     path: '/buscar-empleado',
     name: 'buscador-rapido',
-    component: () => import('@/views/BuscadorRapidoView.vue'),
+    component: () => import('@/views/Buscadorrapidoview.vue'),
     meta: { public: true }, 
   },
   {
@@ -80,7 +80,7 @@ const routes = [
       { path: 'biometrico',            name: 'biometrico',        component: () => import('@/views/BiometricoView.vue'),                                  meta: { noAutoRefresh: true, vista: 'biometrico' } },
       { path: 'registros',             name: 'registros',         component: () => import('@/views/RegistrosView.vue'),                                   meta: { vista: 'registros' } },
       { path: 'prenomina',             name: 'prenomina',         component: () => import('@/views/PrenominaView.vue'),                                   meta: { vista: 'prenomina' } },
-      { path: 'cargar-nomina', name: 'cargar-nomina', component: () => import('@/views/ProcesarXlsmView.vue'), meta: { noAutoRefresh: true, vista: 'cargar_nomina' } },
+      { path: 'cargar-nomina', name: 'cargar-nomina', component: () => import('@/views/Procesarxlsmview.vue'), meta: { noAutoRefresh: true, vista: 'cargar_nomina' } },
       { path: 'fatiga-buscador', name: 'fatiga-buscador', component: () => import('@/views/FatigaBuscadorView.vue'), meta: { vista: 'fatiga_buscador' } },
 
       { path: 'altas-bajas',           name: 'altas-bajas',       component: () => import('@/views/AltasBajasView.vue'),                                  meta: { vista: 'altas_bajas' } },
