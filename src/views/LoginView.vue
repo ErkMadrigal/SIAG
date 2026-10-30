@@ -368,30 +368,29 @@ async function handleLogin() {
 /* Botón de descarga neón */
 .btn-apk {
   position: relative; overflow: hidden; isolation: isolate;
-  color: #e6fbff; background: #0b1220;
-  border: 1px solid #22d3ee;
-  box-shadow: 0 0 6px rgba(34,211,238,.55), 0 0 18px rgba(34,211,238,.35), inset 0 0 12px rgba(34,211,238,.15);
-  text-shadow: 0 0 8px rgba(34,211,238,.8);
-  animation: apkGlow 2.4s ease-in-out infinite;
-  transition: transform .15s;
+  color: #cfeff5; background: #0e1626;
+  border: 1px solid rgba(34,211,238,.45);
+  box-shadow: 0 0 8px rgba(34,211,238,.18);
+  animation: apkGlow 4s ease-in-out infinite;
+  transition: transform .15s, box-shadow .2s, border-color .2s;
 }
-.btn-apk:hover { transform: translateY(-1px); box-shadow: 0 0 10px #22d3ee, 0 0 28px rgba(34,211,238,.55), inset 0 0 16px rgba(34,211,238,.25); }
+.btn-apk:hover { transform: translateY(-1px); border-color: rgba(34,211,238,.8); box-shadow: 0 0 14px rgba(34,211,238,.4); }
 .btn-apk:active { transform: scale(.98); }
 /* brillo que barre el botón */
 .btn-apk::before {
   content: ''; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%; z-index: -1;
-  background: linear-gradient(100deg, transparent, rgba(167,139,250,.45), rgba(34,211,238,.5), transparent);
+  background: linear-gradient(100deg, transparent, rgba(34,211,238,.14), transparent);
   transform: skewX(-20deg);
-  animation: apkSweep 3s ease-in-out infinite;
+  animation: apkSweep 6s ease-in-out infinite;
 }
 .apk-fill { position: absolute; inset: 0; z-index: -1; width: 0; background: linear-gradient(90deg, rgba(34,211,238,.35), rgba(167,139,250,.55)); }
 .btn-apk.bajando .apk-fill { animation: apkFill 3.1s cubic-bezier(.3,.1,.3,1) forwards; }
-.btn-apk.bajando { animation: none; box-shadow: 0 0 10px #a78bfa, 0 0 26px rgba(167,139,250,.55), inset 0 0 14px rgba(167,139,250,.25); border-color: #a78bfa; }
+.btn-apk.bajando { animation: none; box-shadow: 0 0 12px rgba(167,139,250,.35); border-color: rgba(167,139,250,.7); }
 
 /* icono: flecha cayendo hacia la bandeja */
 .apk-ico { position: relative; width: 20px; height: 22px; display: inline-flex; align-items: flex-start; justify-content: center; }
-.apk-arrow { font-size: 17px; animation: apkDrop 1.3s ease-in infinite; filter: drop-shadow(0 0 4px #22d3ee); }
-.apk-tray { position: absolute; left: 1px; right: 1px; bottom: 0; height: 5px; border: 2px solid #22d3ee; border-top: none; border-radius: 0 0 4px 4px; box-shadow: 0 0 6px #22d3ee; }
+.apk-arrow { font-size: 17px; animation: apkDrop 2s ease-in infinite; color: #67e8f9; }
+.apk-tray { position: absolute; left: 1px; right: 1px; bottom: 0; height: 5px; border: 2px solid rgba(34,211,238,.75); border-top: none; border-radius: 0 0 4px 4px; }
 .btn-apk.bajando .apk-arrow { animation-duration: .6s; }
 
 @keyframes apkDrop {
@@ -401,8 +400,8 @@ async function handleLogin() {
   100% { transform: translateY(8px); opacity: 0; }
 }
 @keyframes apkGlow {
-  0%,100% { box-shadow: 0 0 6px rgba(34,211,238,.55), 0 0 16px rgba(34,211,238,.3), inset 0 0 10px rgba(34,211,238,.12); }
-  50%     { box-shadow: 0 0 10px rgba(34,211,238,.9), 0 0 30px rgba(34,211,238,.55), inset 0 0 16px rgba(34,211,238,.25); }
+  0%,100% { box-shadow: 0 0 6px rgba(34,211,238,.12); }
+  50%     { box-shadow: 0 0 12px rgba(34,211,238,.3); }
 }
 @keyframes apkSweep { 0% { left: -60%; } 55%,100% { left: 130%; } }
 @keyframes apkFill  { to { width: 100%; } }
