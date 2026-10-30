@@ -68,7 +68,7 @@
         </div>
       </div>
 
-      <p class="login-footer">SIAG SIA v1.0 · {{ new Date().getFullYear() }}</p>
+      <p class="login-footer">SIAG SIA v2.1.1 · {{ new Date().getFullYear() }}</p>
     </div>
 
     <div class="login-right">
