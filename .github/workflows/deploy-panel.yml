@@ -1,11 +1,11 @@
-# Deploy automático del panel (Vue): al hacer push a master compila y sube dist al hosting por FTP.
+# Deploy automático del panel (Vue): al hacer push a master compila, sube un zip de dist
+# por la API de cPanel (HTTPS 2083) y lo extrae en public_html/SIAG. No toca descarga/.
 #
-# Secrets requeridos en GitHub (Settings → Secrets and variables → Actions):
-#   FTP_SERVER    → host FTP (p. ej. ftp.arma2.com.mx)
-#   FTP_USER      → usuario FTP (cPanel → FTP Accounts; mejor uno limitado a la carpeta del panel)
-#   FTP_PASSWORD  → contraseña de ese usuario FTP
-#   FTP_DIR       → carpeta destino relativa al login FTP, terminando en "/" (p. ej. /SIAG/ o /public_html/SIAG/)
-name: Deploy panel (FTP)
+# Secrets requeridos en GitHub (Settings → Secrets and variables → Actions → Repository secrets):
+#   ARMA2_CPANEL_HOST   → host de cPanel de arma2, SOLO el host (p. ej. servidor.hosting.com)
+#   ARMA2_CPANEL_USER   → usuario de cPanel de arma2
+#   ARMA2_CPANEL_TOKEN  → API Token de cPanel de arma2
+name: Deploy panel (cPanel API)
 
 on:
   push:
@@ -14,7 +14,19 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      CP_HOST: ${{ secrets.ARMA2_CPANEL_HOST }}
+      CP_USER: ${{ secrets.ARMA2_CPANEL_USER }}
+      CP_TOKEN: ${{ secrets.ARMA2_CPANEL_TOKEN }}
+      DEST_REL: public_html/SIAG
     steps:
+      - name: Verificar secretos
+        run: |
+          for v in CP_HOST CP_USER CP_TOKEN; do
+            if [ -z "${!v}" ]; then echo "::error::Falta el secreto ARMA2_${v/CP_/CPANEL_}"; exit 1; fi
+          done
+          echo "Secretos presentes"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -25,18 +37,50 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-      - name: Subir dist al hosting
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: arma2.com.mx
-          username: ${{ secrets.FTP_USER }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: ${{ secrets.FTP_DIR }}
-          protocol: ftps
-          port: 21
-          local-dir: ./dist/
-          # Nunca tocar el APK que vive en el servidor
-          exclude: |
-            **/.git*
-            **/.git*/**
-            descarga/**
+      - name: Empaquetar dist
+        run: |
+          cd dist
+          rm -rf descarga
+          zip -qr ../siag-dist.zip .
+          ls -la ../siag-dist.zip
+
+      - name: Subir zip a cPanel
+        run: |
+          AUTH="Authorization: cpanel ${CP_USER}:${CP_TOKEN}"
+          BASE="https://${CP_HOST}:2083"
+          HOME_DIR=$(curl -fsS -H "$AUTH" "$BASE/execute/Variables/get_user_information" | jq -r '.data.home_directory')
+          [ -n "$HOME_DIR" ] && [ "$HOME_DIR" != "null" ] || { echo "::error::No se obtuvo el home de cPanel (revisa host/usuario/token)"; exit 1; }
+          echo "HOME_DIR=$HOME_DIR" >> "$GITHUB_ENV"
+          R=$(curl -fsS -H "$AUTH" -F "dir=${DEST_REL}" -F "file-1=@siag-dist.zip" "$BASE/execute/Fileman/upload_files")
+          echo "$R" | jq -c '{status, errors}'
+          [ "$(echo "$R" | jq -r '.status')" = "1" ] || exit 1
+
+      - name: Extraer zip en public_html/SIAG
+        run: |
+          AUTH="Authorization: cpanel ${CP_USER}:${CP_TOKEN}"
+          BASE="https://${CP_HOST}:2083"
+          DEST="${HOME_DIR}/${DEST_REL}"
+          R=$(curl -fsS -G -H "$AUTH" "$BASE/json-api/cpanel" \
+            --data-urlencode "cpanel_jsonapi_user=${CP_USER}" \
+            --data-urlencode "cpanel_jsonapi_apiversion=2" \
+            --data-urlencode "cpanel_jsonapi_module=Fileman" \
+            --data-urlencode "cpanel_jsonapi_func=fileop" \
+            --data-urlencode "op=extract" \
+            --data-urlencode "sourcefiles=${DEST}/siag-dist.zip" \
+            --data-urlencode "destfiles=${DEST}")
+          echo "$R" | jq -c '.cpanelresult | {event, data}'
+          [ "$(echo "$R" | jq -r '.cpanelresult.data[0].result // 0')" = "1" ] || { echo "::error::Falló la extracción"; exit 1; }
+
+      - name: Borrar zip del servidor
+        if: always()
+        run: |
+          AUTH="Authorization: cpanel ${CP_USER}:${CP_TOKEN}"
+          BASE="https://${CP_HOST}:2083"
+          [ -n "$HOME_DIR" ] || exit 0
+          curl -fsS -G -H "$AUTH" "$BASE/json-api/cpanel" \
+            --data-urlencode "cpanel_jsonapi_user=${CP_USER}" \
+            --data-urlencode "cpanel_jsonapi_apiversion=2" \
+            --data-urlencode "cpanel_jsonapi_module=Fileman" \
+            --data-urlencode "cpanel_jsonapi_func=fileop" \
+            --data-urlencode "op=unlink" \
+            --data-urlencode "sourcefiles=${HOME_DIR}/${DEST_REL}/siag-dist.zip" >/dev/null || true
