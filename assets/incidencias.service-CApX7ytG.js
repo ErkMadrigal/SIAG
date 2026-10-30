@@ -1,0 +1,1 @@
+import{l as e}from"./index-BusHfjkI.js";var t={async getAll(t=`pendiente`){let{data:n}=await e.get(`/incidencias`,{params:{estado:t}});return n.data||[]},async aprobar(t,n=``){let{data:r}=await e.post(`/incidencias/${t}/aprobar`,{tipo:1,comentario:n});return r},async rechazar(t,n=``){let{data:r}=await e.post(`/incidencias/${t}/aprobar`,{tipo:2,comentario:n});return r}};export{t};

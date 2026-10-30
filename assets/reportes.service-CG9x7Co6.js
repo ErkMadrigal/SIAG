@@ -1,0 +1,1 @@
+import{l as e}from"./index-BusHfjkI.js";var t={async getAltas(t,n){let{data:r}=await e.get(`/reportes/altas`,{params:{fecha_inicio:t,fecha_fin:n}});return r.data||[]},async getBajas(t,n){let{data:r}=await e.get(`/reportes/bajas`,{params:{fecha_inicio:t,fecha_fin:n}});return r.data||[]}};export{t};

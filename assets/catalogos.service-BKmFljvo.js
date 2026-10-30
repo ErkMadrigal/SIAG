@@ -1,0 +1,1 @@
+import{l as e}from"./index-BusHfjkI.js";var t={async getCatalogo(t){let{data:n}=await e.get(`/catalogos/${t}`);return n.data||[]},async getInstitucionBancaria(t){let{data:n}=await e.get(`/catalogos/banco/${t}`);return n.data||null}};export{t};

@@ -1,0 +1,1 @@
+import{l as e}from"./index-BusHfjkI.js";var t={async getAll(t={}){let{data:n}=await e.get(`/audit-log`,{params:t});return n}};export{t};
