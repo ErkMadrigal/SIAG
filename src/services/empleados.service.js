@@ -112,6 +112,23 @@ export const empleadosService = {
     return data
   },
 
+  // Permisos del menú de la app Kiosko
+  async getPermisosApp(id) {
+    const { data } = await api.get(`/empleados/${id}/permisos-app`)
+    return data.data
+  },
+
+  async guardarPermisosApp(id, permisos) {
+    const { data } = await api.post(`/empleados/${id}/permisos-app`, { permisos })
+    return data.data
+  },
+
+  // Restablece el enrolamiento: el empleado deberá enrolarse de nuevo en la app
+  async reiniciarEnrolamiento(id) {
+    const { data } = await api.post(`/empleados/${id}/enrolamiento-reset`)
+    return data
+  },
+
   async generarLinkEnrolamiento(id) {
     const { data } = await api.post(`/empleados/${id}/enrolamiento-link`)
     return data.data

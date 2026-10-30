@@ -11,6 +11,17 @@ export const useUiStore = defineStore('ui', () => {
   const currentPage   = ref('Dashboard')
   const breadcrumbs   = ref([{ label: 'Home', to: '/' }])
 
+  // Refresco de la vista actual (botón manual y automático cada 3 min)
+  const refreshKey = ref(0)
+  const refrescando = ref(false)
+  const ultimaActualizacion = ref(Date.now())
+  function refrescar() {
+    refrescando.value = true
+    refreshKey.value++
+    ultimaActualizacion.value = Date.now()
+    setTimeout(() => { refrescando.value = false }, 900)
+  }
+
   watch(isDark, (val) => {
     const html = document.documentElement
     if (val) {
@@ -55,7 +66,7 @@ export const useUiStore = defineStore('ui', () => {
 
   return {
     isDark, sidebarOpen, cmdPaletteOpen, metodosPanelOpen,
-    currentPage, breadcrumbs,
+    currentPage, breadcrumbs, refreshKey, refrescando, ultimaActualizacion, refrescar,
     toggleTheme, toggleSidebar,
     openCmdPalette, closeCmdPalette,
     openMetodos, closeMetodos,

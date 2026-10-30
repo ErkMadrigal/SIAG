@@ -13,6 +13,10 @@
     </button>
 
     <div class="topbar-right">
+      <button class="tb-btn" :class="{ spinning: ui.refrescando }" @click="ui.refrescar()" :title="'Actualizar (auto cada 3 min) · última: ' + horaAct" aria-label="Actualizar">
+        <i class="ti ti-refresh"></i>
+      </button>
+
       <button class="tb-btn" @click="ui.toggleTheme()" :aria-label="ui.isDark ? 'Modo claro' : 'Modo oscuro'">
         <i :class="['ti', ui.isDark ? 'ti-sun' : 'ti-moon']"></i>
       </button>
@@ -73,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router' 
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore }   from '@/stores/ui.js'
@@ -84,6 +88,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const ui   = useUiStore()
 
+const horaAct = computed(() => new Date(ui.ultimaActualizacion).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }))
 const profileOpen = ref(false)
 const profileRef  = ref(null)
 
@@ -323,4 +328,6 @@ onUnmounted(() => {
   /* Mostrar solo notificaciones y perfil */
   .topbar-right { gap: 4px; }
 }
+.tb-btn.spinning i { animation: tb-spin .8s linear infinite; }
+@keyframes tb-spin { to { transform: rotate(360deg); } }
 </style>

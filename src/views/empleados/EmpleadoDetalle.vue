@@ -73,11 +73,8 @@
               {{ empleado.rostro_enrolado == 1 ? 'Enrolado' : 'No enrolado' }}
             </span>
             <div v-if="auth.esAdmin" class="enr-acts">
-              <button class="enr-btn main" @click="showEnrolarModal = true">
-                <i class="ti ti-camera"></i> {{ empleado.rostro_enrolado == 1 ? 'Volver a enrolar' : 'Enrolar rostro' }}
-              </button>
-              <button class="enr-btn" :disabled="generandoLink" @click="generarLink">
-                <i class="ti ti-link"></i> {{ generandoLink ? 'Generando...' : 'Link para el empleado' }}
+              <button class="enr-btn main" @click="showAcciones = true">
+                <i class="ti ti-adjustments"></i> Rostro y app
               </button>
             </div>
           </div>
@@ -367,6 +364,17 @@
     <button class="btn-sm" @click="router.back()">Regresar</button>
   </div>
 
+  <AccionesRostroModal v-if="showAcciones && empleado" :nombre="empleado.nombreCompleto" :enrolado="empleado.rostro_enrolado == 1"
+    :generando-link="generandoLink" :reiniciando="reiniciandoEnr"
+    @close="showAcciones = false"
+    @enrolar="showAcciones = false; showEnrolarModal = true"
+    @link="showAcciones = false; generarLink()"
+    @permisos="showAcciones = false; showPermisosApp = true"
+    @reset="showAcciones = false; reiniciarEnrolamiento()" />
+
+  <PermisosAppModal v-if="showPermisosApp && empleado" :id-empleado="empleado.id" :nombre="empleado.nombreCompleto"
+    @close="showPermisosApp = false" @saved="showSuccess('Permisos de la app guardados')" />
+
   <!-- Modal enrolar rostro (TensorFlow.js) -->
   <Teleport to="body">
     <div v-if="showEnrolarModal" class="modal-overlay" @click.self="showEnrolarModal = false">
@@ -562,6 +570,8 @@
 </template>
 
 <script setup>
+import { useDialog } from '@/composables/useDialog.js'
+const dialog = useDialog()
 import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { usePermisos } from '@/composables/usePermisos.js'
 import { ref, reactive, computed, onMounted } from 'vue'
@@ -574,6 +584,8 @@ import ModalIncidencia from '@/components/ui/ModalIncidencia.vue'
 import EnrolarRostro from '@/components/ui/EnrolarRostro.vue'
 import ExpedienteBanco from '@/components/ui/ExpedienteBanco.vue'
 import { useAuthStore } from '@/stores/auth.js'
+import PermisosAppModal from '@/components/ui/PermisosAppModal.vue'
+import AccionesRostroModal from '@/components/ui/AccionesRostroModal.vue'
 const { can } = usePermisos()
 
 const route  = useRoute()
@@ -600,6 +612,8 @@ const togglingSalida   = ref(false)
 
 // ── Enrolamiento facial (TensorFlow.js) ──
 const showEnrolarModal = ref(false)
+const showPermisosApp = ref(false)
+const showAcciones = ref(false)
 const generandoLink    = ref(false)
 const linkEnrolamiento = ref(null)
 const linkCopiado      = ref(false)
@@ -611,6 +625,19 @@ const enrolarDesdePanel = (d1, d2) =>
 function onEnrolado() {
   empleado.value.rostro_enrolado = 1
   setTimeout(() => { showEnrolarModal.value = false; showSuccess('Rostro enrolado correctamente') }, 1200)
+}
+
+const reiniciandoEnr = ref(false)
+async function reiniciarEnrolamiento() {
+  if (!(await dialog.confirmar({ titulo: 'Restablecer enrolamiento', mensaje: 'Se borrará el rostro actual de este empleado y la app lo mandará a enrolarse de nuevo.', tipo: 'aviso', confirmText: 'Restablecer' }))) return
+  reiniciandoEnr.value = true
+  try {
+    await empleadosService.reiniciarEnrolamiento(route.params.id)
+    empleado.value.rostro_enrolado = 0
+    showSuccess('Enrolamiento restablecido. En la app deberá enrolarse de nuevo')
+  } catch (err) {
+    showError(err.response?.data?.message || 'No se pudo restablecer el enrolamiento')
+  } finally { reiniciandoEnr.value = false }
 }
 
 async function generarLink() {
@@ -1368,6 +1395,7 @@ select option { background: var(--bg1); }
 .enr-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 9px; cursor: pointer;
   font-size: 12px; font-weight: 600; font-family: inherit; background: var(--bg2); color: var(--tx0); border: 0.5px solid var(--bdr2); }
 .enr-btn.main { background: var(--acc, #4f8ef7); border-color: var(--acc, #4f8ef7); color: #fff; }
+.enr-btn.danger { color: #f05454; border-color: rgba(240,84,84,.4); background: rgba(240,84,84,.08); }
 .enr-btn:disabled { opacity: .6; cursor: wait; }
 .link-hint { font-size: 12px; color: var(--tx2); margin: 0 0 12px; line-height: 1.5; }
 .link-box { display: flex; gap: 8px; }

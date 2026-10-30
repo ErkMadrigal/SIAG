@@ -358,6 +358,8 @@
 </template>
 
 <script setup>
+import { useDialog } from '@/composables/useDialog.js'
+const dialog = useDialog()
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui.js'
@@ -641,7 +643,7 @@ async function confirmarLoteAccion() {
 
     loteEstado.value = 'confirmado'
   } catch (err) {
-    alert('No se pudo confirmar el lote: ' + err.message)
+    dialog.alerta({ titulo: 'No se pudo confirmar el lote', mensaje: err.message, tipo: 'error' })
   } finally {
     loteProcesando.value = null
   }
@@ -653,7 +655,7 @@ async function deshacerLoteAccion() {
   if (!loteIdActual.value || loteProcesando.value) return
 
   const n = resultado.value?.insertados ?? 0
-  if (!confirm(`¿Seguro? Esto va a BORRAR (físico) los ${n} empleados que se acaban de insertar en esta sesión. No se puede deshacer.`)) return
+  if (!(await dialog.confirmar({ titulo: 'Deshacer lote', mensaje: `Esto va a BORRAR (físico) los ${n} empleados que se acaban de insertar en esta sesión. No se puede deshacer.`, tipo: 'peligro', confirmText: 'Sí, borrar' }))) return
 
   loteProcesando.value = 'rollback'
   const token = localStorage.getItem('access_token')
@@ -674,7 +676,7 @@ async function deshacerLoteAccion() {
 
     loteEstado.value = 'rollback'
   } catch (err) {
-    alert('No se pudo deshacer el lote: ' + err.message)
+    dialog.alerta({ titulo: 'No se pudo deshacer el lote', mensaje: err.message, tipo: 'error' })
   } finally {
     loteProcesando.value = null
   }
@@ -864,13 +866,13 @@ function xhrConProgreso(url, body, token, onProgress) {
 function validarFirma(workbook) {
   const ws = workbook.Sheets['catalogos'] || workbook.Sheets['Catalogos']
   if (!ws) {
-    alert('Archivo inválido: no existe la hoja "catalogos"')
+    dialog.alerta({ titulo: 'Archivo inválido', mensaje: 'No existe la hoja "catalogos".', tipo: 'error' })
     return false
   }
   const cell = ws['F225']
   const val  = String(cell?.w ?? cell?.v ?? '').trim()
   if (norm(val) !== norm(FIRMA_ESPERADA)) {
-    alert('Firma inválida — plantilla no autorizada')
+    dialog.alerta({ titulo: 'Firma inválida', mensaje: 'La plantilla no está autorizada.', tipo: 'error' })
     return false
   }
   return true

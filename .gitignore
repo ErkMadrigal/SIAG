@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# El APK no va en git (pesa ~77 MB): se sube directo al hosting en /SIAG/descarga/
+public/descarga/*.apk
+
+#VITE_LUXAND_TOKEN=a5da54250240419999df7a0dfa36cd3d

@@ -1,4 +1,6 @@
 <script setup>
+import { useDialog } from '@/composables/useDialog.js'
+const dialog = useDialog()
 // Expediente digital (datos bancarios): sube un estado de cuenta (PDF o foto),
 // extrae CLABE/titular, lo guarda en el servidor como evidencia y le pasa la
 // CLABE al formulario del perfil.
@@ -97,7 +99,7 @@ async function rechazar(d) {
   catch (err) { error.value = err.response?.data?.message || 'No se pudo rechazar' }
 }
 async function eliminar(d) {
-  if (!confirm(`¿Quitar "${d.nombre_original}" del expediente?`)) return
+  if (!(await dialog.confirmar({ titulo: 'Quitar documento', mensaje: `¿Quitar "${d.nombre_original}" del expediente?`, tipo: 'peligro', confirmText: 'Quitar' }))) return
   try { await empleadosService.eliminarDocumento(d.id); await cargarDocs() }
   catch (err) { error.value = err.response?.data?.message || 'No se pudo eliminar' }
 }

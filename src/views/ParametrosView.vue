@@ -337,6 +337,8 @@
 </template>
 
 <script setup>
+import { useDialog } from '@/composables/useDialog.js'
+const dialog = useDialog()
 import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { ref, reactive, computed, onMounted, defineComponent, h } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
@@ -635,7 +637,7 @@ async function guardarModal() {
 }
 
 async function eliminar(entidad, row) {
-  const ok = confirm(`¿Eliminar "${row.empresa || row.zona || row.partida || row.servicio || row.nombre_corto || row.estado || row.id}"?`)
+  const ok = await dialog.confirmar({ titulo: 'Eliminar registro', mensaje: `¿Eliminar "${row.empresa || row.zona || row.partida || row.servicio || row.nombre_corto || row.estado || row.id}"?`, tipo: 'peligro', confirmText: 'Eliminar' })
   if (!ok) return
   try {
     const endpoint = {
@@ -649,7 +651,7 @@ async function eliminar(entidad, row) {
     await api.delete(endpoint)
     await cargar(entidad)
   } catch (err) {
-    alert(err.response?.data?.message || 'Error al eliminar')
+    dialog.alerta({ titulo: 'No se pudo eliminar', mensaje: err.response?.data?.message || 'Error al eliminar', tipo: 'error' })
   }
 }
 

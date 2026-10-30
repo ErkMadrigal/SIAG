@@ -50,11 +50,11 @@ export function detenerCamara(stream) {
 }
 
 // Comparación idéntica a la del kiosko (tensorflow.service.ts):
-// score = sqrt(1 - distancia); match si score >= 0.79 (distancia <= ~0.376)
+// score = sqrt(1 - distancia); match si score >= 0.69 (distancia <= ~0.524)
 export function compararDescriptores(a, b) {
   let suma = 0
   for (let i = 0; i < a.length; i++) { const d = a[i] - b[i]; suma += d * d }
   const distancia = Math.sqrt(suma)
   const score = Math.max(0, Math.min(1, Math.pow(1 - distancia, 0.5)))
-  return { distancia, score, similar: score >= 0.79 }
+  return { distancia, score, similar: score >= 0.69 }
 }

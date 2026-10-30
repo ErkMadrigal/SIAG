@@ -183,6 +183,44 @@
           </div>
         </div>
       </div>
+
+      <div class="sec">
+        <div class="sec-hdr">
+          <i class="ti ti-clock-shield" style="font-size:15px;color:var(--tx2)"></i>
+          <span class="sec-title">Sesión y actualización</span>
+        </div>
+        <div class="sec-body">
+          <div class="config-row">
+            <div class="config-info">
+              <span class="config-label">Cerrar sesión por inactividad</span>
+              <span class="config-sub">Tiempo sin actividad antes de cerrar la sesión</span>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+              <button
+                v-for="m in INACTIVIDAD_OPCIONES" :key="m"
+                class="theme-opt" :class="{ active: prefInactividadMin === m }"
+                @click="prefInactividadMin = m; guardarPrefs()"
+              >
+                {{ m }} min
+                <span v-if="m === INACTIVIDAD_RECOMENDADA" class="rec-badge">Recomendado</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="config-divider"></div>
+
+          <div class="config-row">
+            <div class="config-info">
+              <span class="config-label">Actualizar la pantalla automáticamente</span>
+              <span class="config-sub">Cada 3 min refresca los datos de la vista actual (no interrumpe formularios ni modales abiertos)</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" v-model="prefAutoRefresh" @change="guardarPrefs" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ── Tab: Cambiar contraseña ── -->
@@ -301,6 +339,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore }   from '@/stores/ui.js'
+import { INACTIVIDAD_OPCIONES, INACTIVIDAD_RECOMENDADA } from '@/composables/usePrefs.js'
 import { authService }  from '@/services/auth.service.js'
 import AvatarInitials   from '@/components/ui/AvatarInitials.vue'
 
@@ -363,6 +402,8 @@ const prefSidebarColapsed  = ref(false)
 const prefAnimaciones       = ref(true)
 const prefNotifIncidencias  = ref(true)
 const prefAvisoInactividad  = ref(true)
+const prefInactividadMin    = ref(INACTIVIDAD_RECOMENDADA)
+const prefAutoRefresh       = ref(true)
 
 onMounted(() => {
   ui.setBreadcrumbs([
@@ -376,6 +417,8 @@ onMounted(() => {
     prefAnimaciones.value      = saved.animaciones      ?? true
     prefNotifIncidencias.value = saved.notifIncidencias ?? true
     prefAvisoInactividad.value = saved.avisoInactividad ?? true
+    prefInactividadMin.value   = INACTIVIDAD_OPCIONES.includes(Number(saved.inactividadMin)) ? Number(saved.inactividadMin) : INACTIVIDAD_RECOMENDADA
+    prefAutoRefresh.value      = saved.autoRefresh !== false
   } catch {}
 })
 
@@ -385,6 +428,8 @@ function guardarPrefs() {
     animaciones:       prefAnimaciones.value,
     notifIncidencias:  prefNotifIncidencias.value,
     avisoInactividad:  prefAvisoInactividad.value,
+    inactividadMin:    prefInactividadMin.value,
+    autoRefresh:       prefAutoRefresh.value,
   }))
 }
 
@@ -741,4 +786,5 @@ async function cambiarPassword() {
   .form-grid { grid-template-columns: 1fr; }
   .info-grid { flex-direction: column; gap: 14px; }
 }
+.rec-badge { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 10px; font-size: 10px; background: rgba(34,201,122,.18); color: #22c97a; }
 </style>

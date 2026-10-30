@@ -1,6 +1,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth.js'
 import { useRouter } from 'vue-router'
+import { minutosInactividad } from '@/composables/usePrefs.js'
 
 export const sesionExpirada = ref(false)
 
@@ -10,9 +11,9 @@ export function registrarActividad() { ultimaActividad = Date.now() }
 
 export const SEGUNDOS_AVISO = 60   // el aviso sale 60 s antes de cerrar
 
-export function useInactividad({
-  TIEMPO_LOGOUT = 5 * 60 * 1000,   // 5 min sin actividad → se cierra
-} = {}) {
+export function useInactividad() {
+  // Minutos configurables en Configuración (5, 10, 15 o 20; recomendado 10). Se lee en cada revisión.
+  const tiempoLogout = () => minutosInactividad() * 60 * 1000
   const auth   = useAuthStore()
   const router = useRouter()
 
@@ -29,7 +30,7 @@ export function useInactividad({
   function revisar() {
     if (sesionExpirada.value) return   // ya expiró: el modal pide credenciales ahí mismo
     const idle = Date.now() - ultimaActividad
-    if (idle >= TIEMPO_LOGOUT) {
+    if (idle >= tiempoLogout()) {
       mostrarAviso.value = false
       // Se invalidan los tokens pero se conserva el usuario en memoria: así el modal
       // puede pedir la contraseña ahí mismo sin perder lo que había en pantalla.
@@ -38,7 +39,7 @@ export function useInactividad({
       sesionExpirada.value = true
       return
     }
-    const restante = Math.ceil((TIEMPO_LOGOUT - idle) / 1000)
+    const restante = Math.ceil((tiempoLogout() - idle) / 1000)
     if (restante <= SEGUNDOS_AVISO) {
       mostrarAviso.value = true
       segundosRestantes.value = restante
@@ -51,7 +52,7 @@ export function useInactividad({
   // caduque a media chamba (renueva cuando le queden menos de 5 min).
   async function mantenerToken() {
     if (sesionExpirada.value) return
-    if (Date.now() - ultimaActividad >= TIEMPO_LOGOUT) return
+    if (Date.now() - ultimaActividad >= tiempoLogout()) return
     const token = localStorage.getItem('access_token')
     if (!token) return
     try {

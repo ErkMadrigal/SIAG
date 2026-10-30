@@ -224,6 +224,8 @@
 </template>
 
 <script setup>
+import { useDialog } from '@/composables/useDialog.js'
+const dialog = useDialog()
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
 import api from '@/services/api.js'
@@ -335,7 +337,7 @@ async function guardarEdicion() {
 }
 
 async function eliminarItem(item) {
-  const ok = confirm(`¿Eliminar "${item.valor}"? Se realizará un borrado lógico.`)
+  const ok = await dialog.confirmar({ titulo: 'Eliminar elemento', mensaje: `¿Eliminar "${item.valor}"? Se realizará un borrado lógico.`, tipo: 'peligro', confirmText: 'Eliminar' })
   if (!ok) return
   try {
     await api.delete(`/catalogos/items/${item.id}`)

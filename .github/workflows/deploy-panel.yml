@@ -1,0 +1,40 @@
+# Deploy automático del panel (Vue): al hacer push a master compila y sube dist al hosting por FTP.
+#
+# Secrets requeridos en GitHub (Settings → Secrets and variables → Actions):
+#   FTP_SERVER    → host FTP (p. ej. ftp.arma2.com.mx)
+#   FTP_USER      → usuario FTP (cPanel → FTP Accounts; mejor uno limitado a la carpeta del panel)
+#   FTP_PASSWORD  → contraseña de ese usuario FTP
+#   FTP_DIR       → carpeta destino relativa al login FTP, terminando en "/" (p. ej. /SIAG/ o /public_html/SIAG/)
+name: Deploy panel (FTP)
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Subir dist al hosting
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ secrets.FTP_DIR }}
+          local-dir: ./dist/
+          # Nunca tocar el APK que vive en el servidor
+          exclude: |
+            **/.git*
+            **/.git*/**
+            descarga/**
