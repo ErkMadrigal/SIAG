@@ -32,6 +32,8 @@ jobs:
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: ${{ secrets.FTP_DIR }}
+          protocol: ftps
+          port: 21
           local-dir: ./dist/
           # Nunca tocar el APK que vive en el servidor
           exclude: |
