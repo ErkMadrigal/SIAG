@@ -1,32 +1,19 @@
-# Deploy automático del panel (Vue): al hacer push a master compila, sube un zip de dist
-# por la API de cPanel (HTTPS 2083) y lo extrae en public_html/SIAG. No toca descarga/.
-#
-# Secrets requeridos en GitHub (Settings → Secrets and variables → Actions → Repository secrets):
-#   ARMA2_CPANEL_HOST   → host de cPanel de arma2, SOLO el host (p. ej. servidor.hosting.com)
-#   ARMA2_CPANEL_USER   → usuario de cPanel de arma2
-#   ARMA2_CPANEL_TOKEN  → API Token de cPanel de arma2
-name: Deploy panel (cPanel API)
+# Deploy del panel (Vue) sin conexiones entrantes al hosting:
+# al hacer push a master compila y publica el resultado en la rama "dist" de este mismo repo.
+# Un cron en el cPanel de arma2 descarga esa rama y la copia a public_html/SIAG (sin tocar descarga/).
+name: Build panel (rama dist)
 
 on:
   push:
     branches: [ master ]
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    env:
-      CP_HOST: ${{ secrets.ARMA2_CPANEL_HOST }}
-      CP_USER: ${{ secrets.ARMA2_CPANEL_USER }}
-      CP_TOKEN: ${{ secrets.ARMA2_CPANEL_TOKEN }}
-      DEST_REL: public_html/SIAG
-    steps:
-      - name: Verificar secretos
-        run: |
-          for v in CP_HOST CP_USER CP_TOKEN; do
-            if [ -z "${!v}" ]; then echo "::error::Falta el secreto ARMA2_${v/CP_/CPANEL_}"; exit 1; fi
-          done
-          echo "Secretos presentes"
+permissions:
+  contents: write
 
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -37,50 +24,14 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-      - name: Empaquetar dist
+      - name: Publicar dist en la rama dist
         run: |
+          rm -rf dist/descarga
+          touch dist/.nojekyll
           cd dist
-          rm -rf descarga
-          zip -qr ../siag-dist.zip .
-          ls -la ../siag-dist.zip
-
-      - name: Subir zip a cPanel
-        run: |
-          AUTH="Authorization: cpanel ${CP_USER}:${CP_TOKEN}"
-          BASE="https://${CP_HOST}:2083"
-          HOME_DIR=$(curl -fsS -H "$AUTH" "$BASE/execute/Variables/get_user_information" | jq -r '.data.home_directory')
-          [ -n "$HOME_DIR" ] && [ "$HOME_DIR" != "null" ] || { echo "::error::No se obtuvo el home de cPanel (revisa host/usuario/token)"; exit 1; }
-          echo "HOME_DIR=$HOME_DIR" >> "$GITHUB_ENV"
-          R=$(curl -fsS -H "$AUTH" -F "dir=${DEST_REL}" -F "file-1=@siag-dist.zip" "$BASE/execute/Fileman/upload_files")
-          echo "$R" | jq -c '{status, errors}'
-          [ "$(echo "$R" | jq -r '.status')" = "1" ] || exit 1
-
-      - name: Extraer zip en public_html/SIAG
-        run: |
-          AUTH="Authorization: cpanel ${CP_USER}:${CP_TOKEN}"
-          BASE="https://${CP_HOST}:2083"
-          DEST="${HOME_DIR}/${DEST_REL}"
-          R=$(curl -fsS -G -H "$AUTH" "$BASE/json-api/cpanel" \
-            --data-urlencode "cpanel_jsonapi_user=${CP_USER}" \
-            --data-urlencode "cpanel_jsonapi_apiversion=2" \
-            --data-urlencode "cpanel_jsonapi_module=Fileman" \
-            --data-urlencode "cpanel_jsonapi_func=fileop" \
-            --data-urlencode "op=extract" \
-            --data-urlencode "sourcefiles=${DEST}/siag-dist.zip" \
-            --data-urlencode "destfiles=${DEST}")
-          echo "$R" | jq -c '.cpanelresult | {event, data}'
-          [ "$(echo "$R" | jq -r '.cpanelresult.data[0].result // 0')" = "1" ] || { echo "::error::Falló la extracción"; exit 1; }
-
-      - name: Borrar zip del servidor
-        if: always()
-        run: |
-          AUTH="Authorization: cpanel ${CP_USER}:${CP_TOKEN}"
-          BASE="https://${CP_HOST}:2083"
-          [ -n "$HOME_DIR" ] || exit 0
-          curl -fsS -G -H "$AUTH" "$BASE/json-api/cpanel" \
-            --data-urlencode "cpanel_jsonapi_user=${CP_USER}" \
-            --data-urlencode "cpanel_jsonapi_apiversion=2" \
-            --data-urlencode "cpanel_jsonapi_module=Fileman" \
-            --data-urlencode "cpanel_jsonapi_func=fileop" \
-            --data-urlencode "op=unlink" \
-            --data-urlencode "sourcefiles=${HOME_DIR}/${DEST_REL}/siag-dist.zip" >/dev/null || true
+          git init -q -b dist
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "build ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" dist
