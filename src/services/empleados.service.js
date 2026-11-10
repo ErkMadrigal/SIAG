@@ -142,6 +142,21 @@ export const empleadosService = {
   async getAsistencias(id, params = {}) {
     const { data } = await api.get(`/empleados/${id}/asistencias`, { params })
     return data
+  },
+
+  async getRostroExtras(id) {
+    const { data } = await api.get(`/empleados/${id}/rostro-extras`)
+    return data
+  },
+
+  async borrarRostroExtras(id) {
+    const { data } = await api.delete(`/empleados/${id}/rostro-extras`)
+    return data
+  },
+
+  async getUbicaciones(id, dias = 30) {
+    const { data } = await api.get(`/empleados/${id}/ubicaciones`, { params: { dias } })
+    return data.data
   }
 
 }

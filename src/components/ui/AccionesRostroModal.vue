@@ -16,6 +16,11 @@
             {{ enrolado ? 'Rostro enrolado' : 'Sin rostro enrolado' }}
           </div>
 
+          <div v-if="extras.activo && extras.lista.length" class="ar-extras">
+            <span><i class="ti ti-sparkles"></i> {{ extras.lista.length }} variante(s) aprendida(s) de su rostro (última: {{ extras.lista[0].created_at }})</span>
+            <button :disabled="borrandoExtras" @click="borrarExtras">{{ borrandoExtras ? 'Borrando…' : 'Borrar aprendidas' }}</button>
+          </div>
+
           <div class="ar-grid">
             <button class="ar-card main" @click="elegir('enrolar')">
               <span class="ar-ico"><i class="ti ti-camera"></i></span>
@@ -48,7 +53,11 @@
 </template>
 
 <script setup>
-defineProps({
+import { reactive, ref, onMounted } from 'vue'
+import { empleadosService } from '@/services/empleados.service.js'
+
+const props = defineProps({
+  idEmpleado: { type: Number, default: 0 },
   nombre: { type: String, default: '' },
   enrolado: { type: Boolean, default: false },
   generandoLink: { type: Boolean, default: false },
@@ -56,6 +65,24 @@ defineProps({
 })
 const emit = defineEmits(['close', 'enrolar', 'link', 'permisos', 'reset'])
 const elegir = (a) => emit(a)
+
+// Variantes del rostro que la app aprende sola (modo multi-vector; si está apagado no se muestra nada)
+const extras = reactive({ activo: false, lista: [] })
+const borrandoExtras = ref(false)
+onMounted(async () => {
+  if (!props.idEmpleado) return
+  try {
+    const r = await empleadosService.getRostroExtras(props.idEmpleado)
+    extras.activo = r.activo === true
+    extras.lista = r.data || []
+  } catch { /* opcional */ }
+})
+async function borrarExtras() {
+  if (!window.confirm('¿Borrar las variantes aprendidas? Queda solo el rostro original.')) return
+  borrandoExtras.value = true
+  try { await empleadosService.borrarRostroExtras(props.idEmpleado); extras.lista = [] }
+  finally { borrandoExtras.value = false }
+}
 </script>
 
 <style scoped>
@@ -67,6 +94,8 @@ const elegir = (a) => emit(a)
 .ar-x { background: none; border: 0; color: var(--tx2, #8b97ad); font-size: 18px; cursor: pointer; }
 .ar-estado { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; padding: 5px 11px; border-radius: 20px; background: rgba(245,166,35,.14); color: #f5a623; margin-bottom: 14px; }
 .ar-estado.ok { background: rgba(34,201,122,.14); color: #22c97a; }
+.ar-extras { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; padding: 8px 12px; border-radius: 12px; background: rgba(79,142,247,.1); color: #4f8ef7; margin-bottom: 12px; }
+.ar-extras button { background: none; border: 0.5px solid currentColor; color: inherit; border-radius: 8px; padding: 4px 10px; font: inherit; cursor: pointer; }
 .ar-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .ar-card { text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 16px; border: 0.5px solid var(--bdr, #263046); background: var(--bg2, #1d2333); color: inherit; font: inherit; cursor: pointer; transition: transform .12s, border-color .12s; }
 .ar-card:hover { transform: translateY(-2px); border-color: #4f8ef7; }

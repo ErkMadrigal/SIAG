@@ -28,7 +28,7 @@ export const useAuthStore = defineStore('auth', () => {
       'nomina_workflow', 'revisar_nomina', 'dispersar_nomina',   
       'incidencias', 'hospitales', 'catalogos', 'tabulador',
       'usuarios', 'configuracion', 'importaciones', 'fatiga_buscador',
-      'camaras', 'mesa_ayuda',
+      'camaras', 'mesa_ayuda', 'paquetes', 'dispositivos',
     ]
     // Biométrico es una vista base: la ven todos los usuarios siempre.
     // Registros NO: depende de los permisos asignados (módulo asistencias).

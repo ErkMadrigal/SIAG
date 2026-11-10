@@ -201,6 +201,9 @@
                         <button v-if="can('colaboradores', 'actualizar')" class="icon-btn" @click="abrirMatriz('edit', u)" title="Editar permisos">
                             <i class="ti ti-shield-lock"></i>
                         </button>
+                        <button v-if="can('colaboradores', 'actualizar')" class="icon-btn" @click="alcanceUser = u" title="Alcance: zonas y clientes que puede ver">
+                            <i class="ti ti-map-pin-cog"></i>
+                        </button>
                         <button v-if="can('colaboradores', 'actualizar')" class="icon-btn" @click="abrirVincular(u)" title="Vincular con empleado">
                             <i class="ti ti-link"></i>
                         </button>
@@ -457,6 +460,7 @@
     </Teleport>
 
   </div>
+  <AlcanceUsuarioModal v-if="alcanceUser" :usuario="alcanceUser" @close="alcanceUser = null" />
 </template>
 
 <script setup>
@@ -464,6 +468,7 @@ import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { usePermisos } from '@/composables/usePermisos.js'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
+import AlcanceUsuarioModal from '@/components/ui/AlcanceUsuarioModal.vue'
 import { usuariosService } from '@/services/usuarios.service.js'
 import EmpleadoPicker from '@/components/ui/EmpleadoPicker.vue'
 import ColaboradorPerfil from '@/components/ui/ColaboradorPerfil.vue'
@@ -495,6 +500,7 @@ const userAccion = ref(null)
 const nuevasCreds = ref(null)
 const savingAccion = ref(false)
 const perfilUser = ref(null)
+const alcanceUser = ref(null)
 const modalVincular = ref(false)
 const vincularId = ref(null)
 const vincularError = ref('')

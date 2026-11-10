@@ -79,26 +79,6 @@
             </div>
           </div>
 
-          <div class="asis-item">
-            <span class="asis-label">
-              Permitir salida anticipada
-              <i class="ti ti-info-circle" title="Deja a este empleado registrar su salida antes de que cumpla su horario, una sola vez. Se apaga sola después de usarse."></i>
-            </span>
-            <button
-              class="salida-toggle"
-              :class="{ active: salidaAnticipada, loading: togglingSalida }"
-              :disabled="togglingSalida || !can('empleados', 'actualizar')"
-              @click="toggleSalidaAnticipada"
-            >
-              <span class="salida-track">
-                <span class="salida-thumb">
-                  <i v-if="togglingSalida" class="ti ti-loader-2 spin"></i>
-                </span>
-              </span>
-              <span class="salida-label">{{ salidaAnticipada ? 'Autorizada' : 'No autorizada' }}</span>
-            </button>
-          </div>
-
         </div>
 
         <!-- Registros de hoy -->
@@ -115,9 +95,18 @@
                 <i class="ti" :class="r.tipo === 'Entrada' ? 'ti-door-enter' : 'ti-door-exit'"></i>{{ r.tipo }}
               </span>
               <span class="hoy-hora">{{ r.hora }}</span>
+              <span v-if="esAnticipada(r)" class="badge-ant" :title="`Salió ${r.minutos_anticipada || ''} min antes de su horario`">
+                <i class="ti ti-alert-triangle"></i> Salida anticipada<template v-if="r.minutos_anticipada"> · {{ fmtMin(r.minutos_anticipada) }}</template>
+              </span>
+              <span v-if="esNoRegistrada(r)" class="badge-ant" title="No checó salida: el sistema cerró la entrada al terminar su turno">
+                <i class="ti ti-clock-off"></i> Salida no registrada
+              </span>
               <span class="hoy-ub">{{ r.ubicacion || '—' }}</span>
               <button v-if="r.latitud && r.longitud && Number(r.latitud) !== 0" class="map-link" @click="abrirMapa(r)">
                 <i class="ti ti-map-pin"></i> Mapa
+              </button>
+              <button v-if="r.tiene_evidencia == 1" class="map-link" @click="evidenciaId = r.id">
+                <i class="ti ti-camera"></i> Foto
               </button>
             </div>
             <button v-if="hoyTotal > 4" class="hoy-mas" @click="abrirHistorial">
@@ -129,6 +118,9 @@
         <div class="sec-footer" style="justify-content: flex-start; margin-top: 14px;">
           <button class="btn-sm" @click="abrirHistorial">
             <i class="ti ti-history"></i> Ver historial de asistencia
+          </button>
+          <button class="btn-sm" style="margin-left:8px" @click="showUbicaciones = true">
+            <i class="ti ti-map-2"></i> Historial de ubicación
           </button>
         </div>
       </div>
@@ -364,7 +356,7 @@
     <button class="btn-sm" @click="router.back()">Regresar</button>
   </div>
 
-  <AccionesRostroModal v-if="showAcciones && empleado" :nombre="empleado.nombreCompleto" :enrolado="empleado.rostro_enrolado == 1"
+  <AccionesRostroModal v-if="showAcciones && empleado" :nombre="empleado.nombreCompleto" :id-empleado="empleado.id" :enrolado="empleado.rostro_enrolado == 1"
     :generando-link="generandoLink" :reiniciando="reiniciandoEnr"
     @close="showAcciones = false"
     @enrolar="showAcciones = false; showEnrolarModal = true"
@@ -486,6 +478,9 @@
     </div>
   </Teleport>
 
+  <HistorialUbicacionModal v-if="showUbicaciones" :empleado-id="route.params.id"
+    :nombre="empleado?.nombreCompleto || ''" @close="showUbicaciones = false" />
+
   <!-- Modal historial de asistencia -->
   <Teleport to="body">
     <div v-if="showHistorialModal" class="modal-overlay" @click.self="cerrarHistorial">
@@ -527,6 +522,12 @@
                     <i class="ti" :class="r.tipo === 'Entrada' ? 'ti-door-enter' : 'ti-door-exit'"></i>
                     {{ r.tipo }}
                   </span>
+                  <span v-if="esAnticipada(r)" class="badge-ant" :title="`Salió ${r.minutos_anticipada || ''} min antes de su horario`">
+                    <i class="ti ti-alert-triangle"></i> Anticipada<template v-if="r.minutos_anticipada"> · {{ fmtMin(r.minutos_anticipada) }}</template>
+                  </span>
+                  <span v-if="esNoRegistrada(r)" class="badge-ant" title="No checó salida: el sistema cerró la entrada al terminar su turno">
+                    <i class="ti ti-clock-off"></i> No registrada
+                  </span>
                 </td>
                 <td>{{ r.ubicacion || '—' }}</td>
                 <td>
@@ -535,6 +536,9 @@
                     <i class="ti ti-map-pin"></i> Ver mapa
                   </button>
                   <span v-else class="muted">—</span>
+                  <button v-if="r.tiene_evidencia == 1" class="map-link" style="margin-left:6px" @click="evidenciaId = r.id">
+                    <i class="ti ti-camera"></i> Foto
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -543,6 +547,7 @@
       </div>
     </div>
   </Teleport>
+  <EvidenciaModal v-if="evidenciaId" :asistencia-id="evidenciaId" @close="evidenciaId = null" />
 
   <!-- Modal mapa del registro -->
   <Teleport to="body">
@@ -582,6 +587,8 @@ import { catalogosService } from '@/services/catalogos.service.js'
 import StatusPill from '@/components/ui/StatusPill.vue'
 import ModalIncidencia from '@/components/ui/ModalIncidencia.vue'
 import EnrolarRostro from '@/components/ui/EnrolarRostro.vue'
+import HistorialUbicacionModal from '@/components/ui/HistorialUbicacionModal.vue'
+import EvidenciaModal from '@/components/ui/EvidenciaModal.vue'
 import ExpedienteBanco from '@/components/ui/ExpedienteBanco.vue'
 import { useAuthStore } from '@/stores/auth.js'
 import PermisosAppModal from '@/components/ui/PermisosAppModal.vue'
@@ -607,8 +614,6 @@ const fotoInputRef = ref(null)
 const loadingAsistencia = ref(true)
 const asistencia = reactive({ estado: null, ultimo_tipo: null, ultima_fecha: null, ultima_hora: null })
 
-const salidaAnticipada = ref(false)
-const togglingSalida   = ref(false)
 
 // ── Enrolamiento facial (TensorFlow.js) ──
 const showEnrolarModal = ref(false)
@@ -720,6 +725,8 @@ const mapaSrc = computed(() => {
 })
 function abrirMapa(r) { mapaRegistro.value = r }
 
+const showUbicaciones    = ref(false)
+const evidenciaId        = ref(null)
 const showHistorialModal = ref(false)
 const loadingHistorial   = ref(false)
 const historial          = ref([])
@@ -830,7 +837,6 @@ async function fetchEmpleado() {
     banco.institucionBancaria = data.institucionBancaria || ''
     banco.bancoId            = data.id_banco            || ''
 
-    salidaAnticipada.value = Number(data.permitir_salida_anticipada) === 1
 
   } catch (err) {
     console.error('Error:', err)
@@ -875,24 +881,11 @@ async function fetchEstadoAsistencia() {
   }
 }
 
-async function toggleSalidaAnticipada() {
-  if (togglingSalida.value) return
-  const nuevoValor = salidaAnticipada.value ? 0 : 1
-
-  togglingSalida.value = true
-  try {
-    await empleadosService.toggleSalidaAnticipada(route.params.id, nuevoValor)
-    salidaAnticipada.value = nuevoValor === 1
-    showSuccess(
-      nuevoValor === 1
-        ? 'Se autorizó al empleado a registrar salida anticipada (se apaga sola al usarla)'
-        : 'Se quitó la autorización de salida anticipada'
-    )
-  } catch (err) {
-    showError(err.response?.data?.message || 'Error al actualizar la autorización de salida anticipada')
-  } finally {
-    togglingSalida.value = false
-  }
+function esNoRegistrada(r) { return r?.tipo === 'Salida' && r?.estado_salida === 'no_registrada' }
+function esAnticipada(r) { return r?.tipo === 'Salida' && r?.estado_salida === 'anticipada' }
+function fmtMin(m) {
+  m = Number(m) || 0
+  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}min antes` : `${m} min antes`
 }
 
 async function abrirHistorial() {
@@ -1309,6 +1302,14 @@ select option { background: var(--bg1); }
 .salida-toggle.active .salida-thumb { transform: translateX(16px); background: var(--amb, #f59e0b); }
 .salida-label { font-size: 12px; font-weight: 500; color: var(--tx1); }
 .salida-toggle.active .salida-label { color: var(--amb, #f59e0b); }
+
+/* Salida anticipada */
+.badge-ant {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: 6px;
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px;
+  background: var(--amb-dim, rgba(245,166,35,.14)); color: var(--amb, #f5a623);
+  border: 0.5px solid var(--amb, #f5a623); white-space: nowrap;
+}
 
 /* Modal historial */
 .modal-overlay {

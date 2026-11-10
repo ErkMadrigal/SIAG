@@ -134,6 +134,14 @@
                   <span class="dot"></span>
                   {{ r.estado }}
                 </span>
+                <span v-if="r.estado === 'Salida' && r.estado_salida === 'anticipada'" class="badge-ant"
+                      :title="`Salió ${r.minutos_anticipada || ''} min antes de su horario`">
+                  <i class="ti ti-alert-triangle"></i> Anticipada<template v-if="r.minutos_anticipada"> · {{ r.minutos_anticipada >= 60 ? Math.floor(r.minutos_anticipada/60) + 'h ' + (r.minutos_anticipada%60) + 'min' : r.minutos_anticipada + ' min' }}</template>
+                </span>
+                <span v-if="r.estado === 'Salida' && r.estado_salida === 'no_registrada'" class="badge-ant"
+                      title="No checó salida: el sistema cerró la entrada al terminar su turno">
+                  <i class="ti ti-clock-off"></i> No registrada
+                </span>
               </td>
               <td style="text-align:center">
                 <button
@@ -507,6 +515,11 @@ tbody tr:last-child td { border-bottom: none; }
 .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .estado-pill.entrada { background: var(--grn-dim); color: var(--grn); }
 .estado-pill.salida  { background: var(--red-dim);  color: var(--red);  }
+.badge-ant {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: 6px;
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px;
+  background: var(--amb-dim); color: var(--amb); border: 0.5px solid var(--amb); white-space: nowrap;
+}
 .estado-pill.pendiente { background: var(--amb-dim); color: var(--amb); }
 
 /* Icon btn */

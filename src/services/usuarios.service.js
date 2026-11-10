@@ -46,6 +46,16 @@ export const usuariosService = {
     return data
     },
 
+  async getAlcance(id) {
+    const { data } = await api.get(`/usuarios/${id}/alcance`)
+    return data.data // { zonas:[ids], clientes:[ids], opciones:{ zonas:[], clientes:[] } }
+  },
+
+  async setAlcance(id, zonas, clientes) {
+    const { data } = await api.post(`/usuarios/${id}/alcance`, { zonas, clientes })
+    return data
+  },
+
   async toggleEstatus(id) {
     const { data } = await api.patch(`/usuarios/${id}/estatus`)
     return data
