@@ -12,9 +12,9 @@ export function registrarActividad() { ultimaActividad = Date.now() }
 export const SEGUNDOS_AVISO = 60   // el aviso sale 60 s antes de cerrar
 
 export function useInactividad() {
-  // Minutos configurables en Configuración (5, 10, 15 o 20; recomendado 10). Se lee en cada revisión.
-  const tiempoLogout = () => minutosInactividad() * 60 * 1000
+  // Minutos configurables en Configuración (5 a 20; 30 y 60 solo administradores; recomendado 10). Se lee en cada revisión.
   const auth   = useAuthStore()
+  const tiempoLogout = () => minutosInactividad(auth.esAdmin) * 60 * 1000
   const router = useRouter()
 
   const mostrarAviso      = ref(false)

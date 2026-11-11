@@ -197,11 +197,11 @@
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
               <button
-                v-for="m in INACTIVIDAD_OPCIONES" :key="m"
+                v-for="m in opcionesInactividad" :key="m"
                 class="theme-opt" :class="{ active: prefInactividadMin === m }"
                 @click="prefInactividadMin = m; guardarPrefs()"
               >
-                {{ m }} min
+                {{ m === 60 ? '1 hora' : m + ' min' }}
                 <span v-if="m === INACTIVIDAD_RECOMENDADA" class="rec-badge">Recomendado</span>
               </button>
             </div>
@@ -339,7 +339,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useUiStore }   from '@/stores/ui.js'
-import { INACTIVIDAD_OPCIONES, INACTIVIDAD_RECOMENDADA } from '@/composables/usePrefs.js'
+import { INACTIVIDAD_OPCIONES, INACTIVIDAD_OPCIONES_ADMIN, INACTIVIDAD_RECOMENDADA } from '@/composables/usePrefs.js'
 import { authService }  from '@/services/auth.service.js'
 import AvatarInitials   from '@/components/ui/AvatarInitials.vue'
 
@@ -403,6 +403,8 @@ const prefAnimaciones       = ref(true)
 const prefNotifIncidencias  = ref(true)
 const prefAvisoInactividad  = ref(true)
 const prefInactividadMin    = ref(INACTIVIDAD_RECOMENDADA)
+// 30 min y 1 hora solo para administradores
+const opcionesInactividad   = computed(() => auth.esAdmin ? INACTIVIDAD_OPCIONES_ADMIN : INACTIVIDAD_OPCIONES)
 const prefAutoRefresh       = ref(true)
 
 onMounted(() => {
@@ -417,7 +419,7 @@ onMounted(() => {
     prefAnimaciones.value      = saved.animaciones      ?? true
     prefNotifIncidencias.value = saved.notifIncidencias ?? true
     prefAvisoInactividad.value = saved.avisoInactividad ?? true
-    prefInactividadMin.value   = INACTIVIDAD_OPCIONES.includes(Number(saved.inactividadMin)) ? Number(saved.inactividadMin) : INACTIVIDAD_RECOMENDADA
+    prefInactividadMin.value   = opcionesInactividad.value.includes(Number(saved.inactividadMin)) ? Number(saved.inactividadMin) : INACTIVIDAD_RECOMENDADA
     prefAutoRefresh.value      = saved.autoRefresh !== false
   } catch {}
 })
