@@ -79,7 +79,83 @@ export function separarNombre(completo, curp = '') {
 const esCurp = v => /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/.test(v)
 const esRfc  = v => /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(v)
 
+
+// ── Formato "de chat": viñetas, etiqueta y valor sin ":" ("* Curp MEFS851114MMCRBN00") ─────────
+// Se reescribe a "Etiqueta: valor" para que lo entienda el detector de siempre.
+const ETIQUETAS = [
+  ['nombre completo', 'nombre'], ['nombre y apellidos', 'nombre'],
+  ['contacto de emergencia', 'contacto'], ['contacto emergencia', 'contacto'],
+  ['telefono de emergencia', 'Teléfono de emergencia'], ['numero de emergencia', 'Teléfono de emergencia'],
+  ['fecha de ingreso', 'Ingreso'], ['fecha de alta', 'Ingreso'], ['fecha ingreso', 'Ingreso'],
+  ['fecha de pago', 'pago'], ['dias de pago', 'pago'], ['dia de pago', 'pago'],
+  ['clave interbancaria', 'CLABE'], ['cuenta clabe', 'CLABE'], ['clabe interbancaria', 'CLABE'], ['interbancaria', 'CLABE'], ['clabe', 'CLABE'],
+  ['numero seguro social', 'NSS'], ['numero de seguro social', 'NSS'], ['seguro social', 'NSS'], ['nss', 'NSS'], ['imss', 'NSS'],
+  ['tipo de sangre', 'Tipo de sangre'], ['sangre', 'Tipo de sangre'],
+  ['codigo postal', 'cp'],
+  ['curp', 'CURP'], ['rfc', 'RFC'], ['alergias', 'Alergias'], ['alergia', 'Alergias'],
+  ['escolaridad', 'Escolaridad'], ['turno', 'Turno'], ['puesto', 'Puesto'], ['parentesco', 'Parentesco'],
+  ['banco', 'Banco'], ['foto', 'foto'],
+].sort((a, b) => b[0].length - a[0].length)
+
+function prepararTexto(texto) {
+  const salida = []
+  let pendienteNombre = false
+  for (const cruda of texto.split(/\r?\n/)) {
+    const linea = cruda.replace(/^[\s*•·\-–—>]+/, '').trim()
+    if (!linea) { salida.push(''); continue }
+    const nl = norm(linea)
+    let hit = null
+    for (const [frase, canon] of ETIQUETAS) {
+      if (nl.startsWith(frase) && !/[a-z]/.test(nl.charAt(frase.length) || ' ')) {
+        const resto0 = linea.slice(frase.length)
+        const iColon = resto0.search(/[:=]/)
+        // "Etiqueta más larga: valor" que no es esta etiqueta → se deja como venía
+        if (iColon >= 0 && resto0.slice(0, iColon).trim()) continue
+        hit = { canon, resto: resto0.replace(/^\s*[:=\-–]?\s*/, '').trim() }
+        break
+      }
+    }
+    if (!hit) {
+      if (pendienteNombre) { salida.push('Nombre completo: ' + linea); pendienteNombre = false } else salida.push(linea)
+      continue
+    }
+    pendienteNombre = false
+    const { canon, resto } = hit
+    if (canon === 'foto') continue
+    if (canon === 'nombre') { if (resto) salida.push('Nombre completo: ' + resto.replace(/\s+/g, ' ')); else pendienteNombre = true; continue }
+    if (canon === 'contacto') {
+      const tel = (resto.match(/\d[\d\s-]{8,}\d/) || [''])[0]
+      const mNom = resto.match(/nombre\s+(.+?)\s+parentesco/i)
+      const mPar = resto.match(/parentesco\s*\)?\s*(.*)$/i)
+      let nombre = mNom ? mNom[1].trim() : ''
+      if (!mNom && !mPar) nombre = resto.replace(tel, '').replace(/[()]/g, '').trim()
+      if (tel) salida.push('Teléfono de emergencia: ' + tel)
+      if (nombre) salida.push('Contacto de emergencia: ' + nombre.replace(/\s+/g, ' '))
+      if (mPar && mPar[1].trim()) salida.push('Parentesco: ' + mPar[1].replace(/^[\s,)]+/, '').trim())
+      continue
+    }
+    if (canon === 'cp') {
+      const m = resto.match(/\d{5}/)
+      if (m) { salida.push('C.P.: ' + m[0]); const sobra = resto.replace(m[0], '').trim(); if (sobra) salida.push('Nota C.P.: ' + sobra) }
+      else salida.push('C.P.: ' + resto)
+      continue
+    }
+    if (canon === 'pago') {
+      const t = norm(resto)
+      let per = ''
+      if (/quincen|\b15\b.*\b(30|31)\b|\b(30|31)\b.*\b15\b/.test(t)) per = 'Quincenal'
+      else if (/semanal|lunes|martes|miercoles|jueves|viernes|sabado|domingo/.test(t)) per = 'Semanal'
+      else if (/mensual|^\s*(30|31|28)\s*$/.test(t)) per = 'Mensual'
+      if (per) salida.push('Periodicidad: ' + per)
+      continue
+    }
+    salida.push(canon + ': ' + resto)
+  }
+  return salida.join('\n')
+}
+
 function crudoDeTexto(texto) {
+  texto = prepararTexto(texto)
   const r = { _extras: [] }
   let sinEtiqueta = []
   texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean).forEach(linea => {
@@ -118,6 +194,11 @@ function resolverCodigos(r) {
 
 // Parte el texto en varios empleados: bloques separados por línea en blanco (si cada uno trae CURP o nombre)
 function bloques(texto) {
+  const marcas = texto.match(/^[\s*•·\-–—>]*nombre\s+completo\b/gim) || []
+  if (marcas.length > 1) {
+    const trozos = texto.split(/\n(?=[\s*•·\-–—>]*nombre\s+completo\b)/i).map(p => p.trim()).filter(Boolean)
+    if (trozos.length > 1) return trozos
+  }
   const partes = texto.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean)
   return partes.length > 1 ? partes : [texto]
 }
@@ -125,6 +206,11 @@ function bloques(texto) {
 function buscarEnCatalogo(lista, texto) {
   const t = key(texto)
   if (!t) return null
+  // Token corto ("A", "B", "N"): solo coincide con una palabra completa del catálogo ("Turno A")
+  if (t.length <= 2) {
+    const palabra = norm(texto)
+    return lista.find(o => key(o.valor) === t) || lista.find(o => norm(o.valor).split(/[^a-z0-9]+/).includes(palabra)) || null
+  }
   const exacto = lista.find(o => key(o.valor) === t)
   if (exacto) return exacto
   return lista.find(o => key(o.valor).includes(t) || t.includes(key(o.valor))) || null
