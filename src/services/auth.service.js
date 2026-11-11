@@ -94,6 +94,11 @@ export const authService = {
     }
   },
 
+  async miEmpleado() {
+    const { data } = await api.get('/auth/me/empleado')
+    return data // { data: empleado|null, usuario: { nombre, paterno, materno } }
+  },
+
   async me() {
     const { data } = await api.get('/auth/me')
     return data.data

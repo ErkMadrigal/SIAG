@@ -8,6 +8,7 @@
         <div class="perfil-avatar-info">
           <h1 class="perfil-nombre">{{ auth.userName }}</h1>
           <span class="perfil-rol">{{ auth.user?.rol }}</span>
+          <span v-if="empleado" class="perfil-rol" style="background:var(--grn-dim);color:var(--grn)">No. empleado {{ empleado.numero }}</span>
           <span class="perfil-correo">{{ auth.user?.correo }}</span>
         </div>
       </div>
@@ -37,8 +38,16 @@
         <div class="sec-body">
           <div class="form-grid">
             <div class="field">
-              <label class="flabel">Nombre completo</label>
-              <input class="finput" v-model="form.nombre" placeholder="Tu nombre completo" />
+              <label class="flabel">Nombre(s)</label>
+              <input class="finput" v-model="form.nombre" placeholder="Nombre(s)" />
+            </div>
+            <div class="field">
+              <label class="flabel">Apellido paterno</label>
+              <input class="finput" v-model="form.paterno" placeholder="Apellido paterno" />
+            </div>
+            <div class="field">
+              <label class="flabel">Apellido materno</label>
+              <input class="finput" v-model="form.materno" placeholder="Apellido materno" />
             </div>
             <div class="field">
               <label class="flabel">Correo electrónico</label>
@@ -64,6 +73,32 @@
               <i v-else class="ti ti-device-floppy"></i>
               {{ savingPerfil ? 'Guardando...' : 'Guardar cambios' }}
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Perfil del trabajador (si el usuario está ligado a un empleado) -->
+      <div class="sec" v-if="empleado">
+        <div class="sec-hdr">
+          <i class="ti ti-id-badge-2" style="font-size:15px;color:var(--tx2)"></i>
+          <span class="sec-title">Perfil del trabajador</span>
+        </div>
+        <div class="sec-body">
+          <div class="emp-card">
+            <img v-if="empleado.foto" :src="empleado.foto" alt="Foto" class="emp-foto" @error="$event.target.style.display = 'none'" />
+            <div class="info-grid" style="flex:1">
+              <div class="info-item"><span class="info-label">No. de empleado</span><span class="info-val">{{ empleado.numero }}</span></div>
+              <div class="info-item"><span class="info-label">Nombre</span><span class="info-val">{{ empleado.nombre_completo }}</span></div>
+              <div class="info-item"><span class="info-label">Puesto</span><span class="info-val">{{ empleado.puesto || '—' }}</span></div>
+              <div class="info-item"><span class="info-label">Servicio</span><span class="info-val">{{ empleado.ubicacion || '—' }}</span></div>
+              <div class="info-item"><span class="info-label">Turno</span><span class="info-val">{{ empleado.turno || '—' }}</span></div>
+              <div class="info-item"><span class="info-label">Ingreso</span><span class="info-val">{{ empleado.fecha_ingreso || '—' }}</span></div>
+              <div class="info-item"><span class="info-label">CURP</span><span class="info-val">{{ empleado.curp || '—' }}</span></div>
+              <div class="info-item"><span class="info-label">Rostro</span><span class="info-val">{{ empleado.rostro_enrolado ? 'Enrolado' : 'Sin enrolar' }}</span></div>
+            </div>
+          </div>
+          <div class="form-footer" v-if="auth.esAdmin">
+            <button class="btn-primary" @click="router.push('/empleados/' + empleado.id)"><i class="ti ti-user-search"></i> Ver expediente completo</button>
           </div>
         </div>
       </div>
@@ -367,22 +402,41 @@ function cambiarTab(key) {
 
 // ── Formulario perfil ─────────────────────────────────
 const form = ref({
-  nombre: auth.user?.nombre || '',
+  nombre: '',
+  paterno: '',
+  materno: '',
   correo: auth.user?.correo || '',
+})
+const empleado = ref(null)   // perfil del trabajador ligado (null si el usuario no tiene empleado)
+
+onMounted(async () => {
+  try {
+    const r = await authService.miEmpleado()
+    empleado.value = r.data || null
+    const u = r.usuario
+    if (u) { form.value.nombre = u.nombre || ''; form.value.paterno = u.paterno || ''; form.value.materno = u.materno || '' }
+  } catch {
+    form.value.nombre = auth.user?.nombre || ''   // sin el dato por partes: al menos se puede ver
+  }
 })
 const savingPerfil  = ref(false)
 const msgPerfil     = ref('')
 const msgPerfilType = ref('ok')
 
 async function guardarPerfil() {
-  if (!form.value.nombre || !form.value.correo) return
+  if (!form.value.nombre.trim() || !form.value.correo.trim()) {
+    msgPerfil.value = 'El nombre y el correo son obligatorios'; msgPerfilType.value = 'err'
+    setTimeout(() => { msgPerfil.value = '' }, 4000)
+    return
+  }
   savingPerfil.value = true
   msgPerfil.value    = ''
   try {
-    await authService.updateMe(form.value)
-    // Actualizar store local
+    const res = await authService.updateMe(form.value)
+    // Actualizar store local (el store guarda el nombre completo)
     if (auth.user) {
-      auth.user.nombre = form.value.nombre
+      auth.user.nombre = res?.data?.nombre_completo
+        || [form.value.nombre, form.value.paterno, form.value.materno].filter(Boolean).join(' ')
       auth.user.correo = form.value.correo
       localStorage.setItem('user', JSON.stringify(auth.user))
     }
@@ -710,6 +764,8 @@ async function cambiarPassword() {
 .info-item { display: flex; flex-direction: column; gap: 4px; }
 .info-label { font-size: 11px; color: var(--tx2); text-transform: uppercase; letter-spacing: .6px; font-weight: 500; }
 .info-val   { font-size: 14px; color: var(--tx0); font-weight: 500; }
+.emp-card { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+.emp-foto { width: 96px; height: 96px; border-radius: 14px; object-fit: cover; border: 0.5px solid var(--bdr2); background: var(--bg2); }
 .badge-active {
   display: inline-flex;
   align-items: center;
