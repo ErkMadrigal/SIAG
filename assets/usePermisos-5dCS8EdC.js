@@ -1,0 +1,1 @@
+import{o as e}from"./index-C_0zrM8_.js";function t(){let t=e();return{can:(e,n)=>t.can(e,n)}}export{t};
