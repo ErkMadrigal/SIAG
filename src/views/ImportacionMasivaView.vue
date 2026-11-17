@@ -152,10 +152,6 @@
               <label>¿Quién te mandó estos archivos? <span class="opcional">(temporal, se borra después)</span></label>
               <input v-model="origenCarga" type="text" placeholder="Ej. Raimundo" class="input-clave" />
             </div>
-            <div class="field-mini" style="width:140px">
-              <label>id_cliente</label>
-              <input v-model.number="idClienteCarga" type="number" class="input-clave" />
-            </div>
             <div class="field-mini" style="min-width:260px">
               <label>El sueldo que traen estos archivos es...</label>
               <div class="toggle-sueldo">
@@ -291,6 +287,25 @@
           <div>
             <p style="font-weight:500">Plantilla válida — {{ filas.length }} registros listos para procesar</p>
             <p style="font-size:11px;opacity:.8">Sin errores detectados. Puedes enviar o solo validar contra el servidor.</p>
+          </div>
+        </div>
+
+        <!-- Vista previa de lo que se leyó del Excel (todas las cargas masivas) -->
+        <div v-if="archivo && filas.length" class="sec preview-altas">
+          <div class="sec-hdr">
+            <i class="ti ti-eye" aria-hidden="true"></i>
+            <span>Vista previa — {{ filas.length }} fila(s) leídas{{ filas.length > 200 ? ' (se muestran las primeras 200)' : '' }}</span>
+          </div>
+          <div class="table-wrap" style="max-height:420px; overflow:auto">
+            <table>
+              <thead><tr><th>#</th><th v-for="h in headersPrev" :key="h">{{ h }}</th></tr></thead>
+              <tbody>
+                <tr v-for="(f, i) in filas.slice(0, 200)" :key="i">
+                  <td class="mono" style="font-size:11px">{{ i + 2 }}</td>
+                  <td v-for="h in headersPrev" :key="h" style="font-size:12px">{{ fmtCelda(f[h]) }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -463,9 +478,9 @@ const CONFIGS = {
   },
   nuevos_directo: {
     titulo:      'Carga directa (sin validar)',
-    descripcion: '⚠️ Inserta los datos tal cual vienen, sin ninguna validación. Úsalo solo si estás 100% seguro del origen de los datos.',
-    endpoint:    '/empleados/masivo-directo',
-    action:      'empleado_masivo_directo',
+    descripcion: 'Lee la hoja "Altas" de uno o varios Excel, muestra una vista previa y los inserta tal cual vienen (sin cruzar contra lo existente). El ID de empleado es autoincremental.',
+    endpoint:    '/importacion-masiva/altas-xlsx',
+    action:      'altas_issste_masivo',
   },
   actualizar_dinamico: {
     titulo:      'Actualización dinámica de empleados',
@@ -489,7 +504,7 @@ const CONFIGS = {
 
 const tipo   = computed(() => route.query.tipo || 'nuevos')
 const config = computed(() => CONFIGS[tipo.value] || CONFIGS.nuevos)
-const esAltasMultiple = computed(() => tipo.value === 'altas_issste') // NUEVO
+const esAltasMultiple = computed(() => ['altas_issste', 'nuevos_directo'].includes(tipo.value))
 
 // ── Candado ──────────────────────────────────────────
 const desbloqueado   = ref(false)
@@ -530,9 +545,10 @@ function onFileChange(e) {
    el backend hace toda la lectura del Excel. */
 const fileInputAltasRef = ref(null)
 const archivosAltas     = ref([])
+const headersPrev       = ref([])
+function fmtCelda(v) { return v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '') }
 const previews          = ref([])
 const origenCarga       = ref('')
-const idClienteCarga    = ref(100)
 
 // NUEVO -- true = el sueldo capturado es quincenal (se multiplica x2 para
 // sacar salario_mensual). false = ya viene mensual, se usa tal cual.
@@ -677,7 +693,6 @@ async function enviarAltasDirecta() {
     const formData = new FormData()
     formData.append('archivo', file)
     formData.append('origen', origenCarga.value.trim())
-    formData.append('id_cliente', idClienteCarga.value || 100)
     formData.append('lote_id', loteIdActual.value) // NUEVO
     formData.append('duplicar_sueldo', duplicarSueldo.value ? '1' : '0') // NUEVO
 
@@ -870,6 +885,7 @@ function procesarArchivo(file) {
     }
 
     filas.value = rows
+    headersPrev.value = headers
 
     if (tipo.value === 'servicios_upsert') {
       validarServiciosUpsert(rows)
@@ -1383,6 +1399,7 @@ const mostrarColArchivo = computed(() => resultado.value?.erroresDetalle?.some((
 function resetTodo() {
   archivo.value       = null
   filas.value         = []
+  headersPrev.value   = []
   errores.value       = []
   validado.value      = false
   uploading.value     = false
