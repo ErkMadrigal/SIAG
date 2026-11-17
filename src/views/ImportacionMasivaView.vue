@@ -103,6 +103,50 @@
             </table>
           </div>
 
+          <!-- Vista previa de la hoja "Altas" (lo que se va a insertar) -->
+          <div v-for="(pv, pi) in previews" :key="'pv'+pi" class="preview-altas">
+            <div class="sec-hdr" style="padding:8px 0">
+              <i class="ti ti-eye" aria-hidden="true"></i>
+              <span>Vista previa: {{ pv.archivo }}</span>
+            </div>
+            <p v-if="pv.error" class="dz-hint" style="color:var(--red,#dc2626)">{{ pv.error }}</p>
+            <template v-else>
+              <p class="dz-hint">
+                <b>{{ pv.filas.length }}</b> empleado(s) se van a insertar
+                <span v-if="pv.omitidas"> · {{ pv.omitidas }} fila(s) sin nombre se omiten (separadores)</span>
+                <span v-if="pv.sinSueldo"> · <span style="color:var(--amb)">{{ pv.sinSueldo }} sin sueldo</span></span>
+                <span v-if="pv.sueldoDeAsistencia"> · sueldo tomado de la hoja Asistencia en {{ pv.sueldoDeAsistencia }}</span>
+                <span v-if="pv.dupCurp"> · <span style="color:var(--red,#dc2626)">{{ pv.dupCurp }} CURP repetida(s)</span></span>
+              </p>
+              <div class="table-wrap" style="max-height:420px; overflow:auto">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th><th>Nombre completo</th><th>CURP</th><th>RFC</th><th>NSS</th>
+                      <th>Turno</th><th>Puesto</th><th>Alta</th><th>CLABE</th><th>Sueldo</th><th>Salario mensual</th><th>Avisos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="f in pv.filas" :key="f.fila">
+                      <td class="mono" style="font-size:11px">{{ f.fila }}</td>
+                      <td>{{ f.nombreCompleto }}</td>
+                      <td class="mono" style="font-size:11px">{{ f.curp }}</td>
+                      <td class="mono" style="font-size:11px">{{ f.rfc }}</td>
+                      <td class="mono" style="font-size:11px">{{ f.nss }}</td>
+                      <td>{{ f.turno }}</td>
+                      <td>{{ f.puesto }}</td>
+                      <td class="mono" style="font-size:11px">{{ f.fecha }}</td>
+                      <td class="mono" style="font-size:11px">{{ f.clabe }}</td>
+                      <td>{{ f.sueldo ?? '—' }}<small v-if="f.sueldoAsist"> (Asist.)</small></td>
+                      <td>{{ f.sueldo != null ? (f.sueldo * (duplicarSueldo ? 2 : 1)).toLocaleString('es-MX') : '—' }}</td>
+                      <td style="color:var(--amb); font-size:11px">{{ f.avisos.join(' · ') }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+          </div>
+
           <div class="campos-altas">
             <div class="field-mini" style="flex:1; min-width:220px">
               <label>¿Quién te mandó estos archivos? <span class="opcional">(temporal, se borra después)</span></label>
@@ -486,6 +530,7 @@ function onFileChange(e) {
    el backend hace toda la lectura del Excel. */
 const fileInputAltasRef = ref(null)
 const archivosAltas     = ref([])
+const previews          = ref([])
 const origenCarga       = ref('')
 const idClienteCarga    = ref(100)
 
@@ -503,20 +548,93 @@ function onDropAltas(e) {
   dragOver.value = false
   const nuevos = Array.from(e.dataTransfer.files || []).filter((f) => /\.(xlsx|xls|xlsm)$/i.test(f.name))
   archivosAltas.value.push(...nuevos)
+  generarPreviews()
 }
 function onFileChangeAltas(e) {
   const nuevos = Array.from(e.target.files || [])
   archivosAltas.value.push(...nuevos)
   e.target.value = ''
+  generarPreviews()
 }
 function quitarArchivoAltas(i) {
   archivosAltas.value.splice(i, 1)
+  generarPreviews()
+}
+
+// ── Vista previa de la hoja "Altas" (solo lectura en el navegador, no envía nada) ──
+function claveNombre(n) {
+  return String(n || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .split(/[^A-Z]+/).filter(Boolean).sort().join(' ')
+}
+function normH(v) { return String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '').toUpperCase() }
+function fechaTxt(v) {
+  if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10)
+  const t = String(v ?? '').trim(); if (!t) return ''
+  const d = new Date(t); return isNaN(d) ? t : d.toISOString().slice(0, 10)
+}
+async function previewDeArchivo(file) {
+  const out = { archivo: file.name, filas: [], omitidas: 0, sinSueldo: 0, sueldoDeAsistencia: 0, dupCurp: 0, error: '' }
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
+    const nomAltas = wb.SheetNames.find(n => n.trim().toLowerCase() === 'altas')
+    if (!nomAltas) { out.error = 'No se encontró la hoja "Altas" en este archivo'; return out }
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[nomAltas], { header: 1, defval: '', raw: true })
+    const hi = aoa.slice(0, 60).findIndex(r => r.some(c => String(c).trim().toLowerCase() === 'nombre'))
+    if (hi < 0) { out.error = 'No se encontró la columna "Nombre" en las primeras filas de "Altas"'; return out }
+    const H = {}; aoa[hi].forEach((c, i) => { const k = normH(c); if (k && H[k] === undefined) H[k] = i })
+    const g = (r, k) => String(r[H[k]] ?? '').trim()
+    const cSue = H.SUELDOMENSUAL ?? H.SUELDOQUINCENAL ?? H.SUELDO
+
+    // Sueldos de la hoja Asistencia (respaldo cuando SUELDO de Altas viene vacío)
+    const asist = {}
+    const nomAsist = wb.SheetNames.find(n => n.trim().toLowerCase() === 'asistencia')
+    if (nomAsist) {
+      const a = XLSX.utils.sheet_to_json(wb.Sheets[nomAsist], { header: 1, defval: '' })
+      const ah = a.slice(0, 15).findIndex(r => r.some(c => normH(c) === 'NOMBRECOMPLETO') && r.some(c => normH(c) === 'SUELDO'))
+      if (ah >= 0) {
+        const cn = a[ah].findIndex(c => normH(c) === 'NOMBRECOMPLETO'), cs = a[ah].findIndex(c => normH(c) === 'SUELDO')
+        for (const r of a.slice(ah + 1)) {
+          const n = String(r[cn] ?? '').trim(), s = String(r[cs] ?? '').replace(/[^\d.]/g, '')
+          if (n && s) asist[claveNombre(n)] = parseFloat(s)
+        }
+      }
+    }
+
+    const curps = {}
+    aoa.slice(hi + 1).forEach((r, i) => {
+      if (r.every(c => String(c ?? '').trim() === '')) return
+      const nombre = g(r, 'NOMBRE')
+      if (!nombre) { out.omitidas++; return }
+      const paterno = g(r, 'PATERNO'), materno = g(r, 'MATERNO')
+      const curp = g(r, 'CURP').toUpperCase(), nss = g(r, 'NSS').replace(/\D/g, ''), clabe = g(r, 'CLABE_INTERBANCARIA').replace(/\D/g, '')
+      let sueldo = null, sueldoAsist = false
+      const raw = cSue !== undefined ? String(r[cSue] ?? '').replace(/[^\d.]/g, '') : ''
+      if (raw) sueldo = parseFloat(raw)
+      else { const k = claveNombre(`${nombre} ${paterno} ${materno}`); if (asist[k] != null) { sueldo = asist[k]; sueldoAsist = true; out.sueldoDeAsistencia++ } }
+      const avisos = []
+      if (!curp) avisos.push('sin CURP'); else if (curp.length !== 18) avisos.push('CURP ≠ 18')
+      if (curp) { if (curps[curp]) { avisos.push('CURP repetida'); out.dupCurp++ } curps[curp] = true }
+      if (!g(r, 'RFC')) avisos.push('sin RFC')
+      if (nss.length !== 11) avisos.push('NSS ≠ 11')
+      if (clabe && clabe.length !== 18) avisos.push('CLABE ≠ 18')
+      if (!clabe) avisos.push('sin CLABE')
+      if (sueldo == null) { avisos.push('sin sueldo'); out.sinSueldo++ }
+      if (!fechaTxt(r[H.FECHA_ALTA])) avisos.push('sin fecha')
+      ;['ID_TURNO', 'ID_PUESTO', 'ID_PERIODICIDAD', 'ID_ESCOLARIDAD', 'ID_TIPOSANGRE', 'ID_PARENTESCO'].forEach(k => { if (!(parseInt(g(r, k)) > 0)) avisos.push('falta ' + k.slice(3).toLowerCase()) })
+      out.filas.push({ fila: hi + 2 + i, nombreCompleto: `${nombre} ${paterno} ${materno}`.replace(/\s+/g, ' ').trim(), curp, rfc: g(r, 'RFC'), nss, turno: g(r, 'TURNO'), puesto: g(r, 'PUESTO'), fecha: fechaTxt(r[H.FECHA_ALTA]), clabe, sueldo, sueldoAsist, avisos })
+    })
+  } catch (e) { out.error = 'No se pudo leer el archivo: ' + e.message }
+  return out
+}
+async function generarPreviews() {
+  previews.value = await Promise.all(archivosAltas.value.map(previewDeArchivo))
 }
 
 // NUEVO -- limpiar lista también arranca un lote nuevo (si ya habías
 // enviado antes) y borra el resultado/decisión anterior de pantalla.
 function limpiarListaAltas() {
   archivosAltas.value = []
+  previews.value      = []
   resultado.value     = null
   loteIdActual.value  = null
   loteEstado.value    = null

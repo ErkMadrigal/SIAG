@@ -23,6 +23,13 @@
 <template>
   <div class="bio-view">
 
+    <div v-if="auth.esAdmin" class="tabs-reg">
+      <button :class="{ on: tabReg === 'app' }" @click="tabReg = 'app'">Registros de la app</button>
+      <button :class="{ on: tabReg === 'lector' }" @click="tabReg = 'lector'">Lector biométrico</button>
+    </div>
+    <LectorRegistros v-if="tabReg === 'lector'" />
+
+    <template v-if="tabReg === 'app'">
     <!-- Header -->
     <div class="view-header">
       <div>
@@ -233,6 +240,7 @@
         </div>
       </div>
     </Teleport>
+    </template>
 
   </div>
 </template>
@@ -243,6 +251,11 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useUiStore } from '@/stores/ui.js'
 import { biometricoService } from '@/services/biometrico.service.js'
 import api from '@/services/api.js'
+import LectorRegistros from '@/components/ui/LectorRegistros.vue'
+import { useAuthStore } from '@/stores/auth.js'
+
+const auth = useAuthStore()
+const tabReg = ref('app')
 
 const ui = useUiStore()
 
@@ -428,6 +441,9 @@ async function exportarExcel() {
 </script>
 
 <style scoped>
+.tabs-reg{display:flex;gap:8px;margin-bottom:14px}
+.tabs-reg button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:7px 16px;cursor:pointer;font-weight:600}
+.tabs-reg button.on{background:#2563eb;color:#fff;border-color:#2563eb}
 .bio-view { display: flex; flex-direction: column; gap: 14px; }
 
 .view-header {

@@ -11,6 +11,10 @@ export const lectorBiometricoService = {
     const { data } = await api.post('/lector-biometrico/importar', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 })
     return data.data
   },
+  async registros(params) {
+    const { data } = await api.get('/lector-biometrico/registros', { params, timeout: 60000 })
+    return data
+  },
   async movimientos(params) {
     const { data } = await api.get('/lector-biometrico/movimientos', { params })
     return data.data
@@ -22,6 +26,10 @@ export const lectorBiometricoService = {
   async empleados(q) {
     const { data } = await api.get('/lector-biometrico/empleados', { params: { q } })
     return data.data
+  },
+  async deEmpleado(id) {
+    const { data } = await api.get(`/lector-biometrico/empleado/${id}`)
+    return data.data // { id_biometrico, disponible }
   },
   async asignar(id_biometrico, id_empleado) {
     const { data } = await api.post('/lector-biometrico/asignar', { id_biometrico, id_empleado })

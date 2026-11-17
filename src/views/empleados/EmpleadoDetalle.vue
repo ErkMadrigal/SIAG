@@ -79,6 +79,28 @@
             </div>
           </div>
 
+          <div class="asis-item" v-if="auth.esAdmin && bio.disponible">
+            <span class="asis-label">ID del lector biométrico</span>
+            <template v-if="!bio.editando">
+              <span v-if="bio.valor" class="asis-pill dentro"><i class="ti ti-fingerprint"></i> {{ bio.valor }}</span>
+              <span v-else class="asis-pill fuera"><i class="ti ti-fingerprint-off"></i> Sin asignar</span>
+              <div class="enr-acts">
+                <button class="enr-btn main" @click="bio.editando = true; bio.nuevo = bio.valor || ''; bio.msg = ''">
+                  <i class="ti" :class="bio.valor ? 'ti-replace' : 'ti-plus'"></i> {{ bio.valor ? 'Cambiar' : 'Asignar' }}
+                </button>
+                <button v-if="bio.valor" class="enr-btn danger" :disabled="bio.guardando" @click="guardarBio(true)"><i class="ti ti-unlink"></i> Quitar</button>
+              </div>
+            </template>
+            <template v-else>
+              <input class="bio-inp" v-model="bio.nuevo" inputmode="numeric" placeholder="Número del lector (ej. 24970157)" @keyup.enter="guardarBio(false)" />
+              <div class="enr-acts">
+                <button class="enr-btn main" :disabled="bio.guardando || !bio.nuevo.trim()" @click="guardarBio(false)"><i class="ti ti-check"></i> {{ bio.guardando ? 'Guardando…' : 'Guardar' }}</button>
+                <button class="enr-btn" :disabled="bio.guardando" @click="bio.editando = false">Cancelar</button>
+              </div>
+            </template>
+            <span v-if="bio.msg" class="asis-valor muted">{{ bio.msg }}</span>
+          </div>
+
         </div>
 
         <!-- Registros de hoy -->
@@ -593,6 +615,7 @@ import ExpedienteBanco from '@/components/ui/ExpedienteBanco.vue'
 import { useAuthStore } from '@/stores/auth.js'
 import PermisosAppModal from '@/components/ui/PermisosAppModal.vue'
 import AccionesRostroModal from '@/components/ui/AccionesRostroModal.vue'
+import { lectorBiometricoService } from '@/services/lectorBiometrico.service.js'
 const { can } = usePermisos()
 
 const route  = useRoute()
@@ -610,6 +633,32 @@ const errorMsg   = ref('')
 const fotoPreview = ref(null)
 const fotoFile    = ref(null)
 const fotoInputRef = ref(null)
+
+// ── ID del lector biométrico (terminal facial) ──
+const bio = reactive({ disponible: false, valor: null, editando: false, nuevo: '', guardando: false, msg: '' })
+async function cargarBio() {
+  if (!auth.esAdmin || !empleado.value) return
+  try {
+    const r = await lectorBiometricoService.deEmpleado(empleado.value.id)
+    bio.disponible = r.disponible !== false
+    bio.valor = r.id_biometrico || null
+  } catch { bio.disponible = false }
+}
+async function guardarBio(quitar) {
+  const num = String(bio.nuevo || '').replace(/\D/g, '')
+  if (!quitar && !num) { bio.msg = 'Escribe solo el número del lector'; return }
+  bio.guardando = true; bio.msg = ''
+  try {
+    if (quitar) await lectorBiometricoService.asignar(bio.valor, null)
+    else {
+      const r = await lectorBiometricoService.asignar(num, empleado.value.id)
+      if (r.reasignado_de) bio.msg = `Ese número estaba asignado al empleado ${String(r.reasignado_de).padStart(6, '0')}; se movió a este.`
+    }
+    await cargarBio()
+    bio.editando = false
+  } catch (e) { bio.msg = e?.response?.data?.message || 'No se pudo guardar' }
+  finally { bio.guardando = false }
+}
 
 const loadingAsistencia = ref(true)
 const asistencia = reactive({ estado: null, ultimo_tipo: null, ultima_fecha: null, ultima_hora: null })
@@ -804,6 +853,7 @@ async function fetchEmpleado() {
   try {
     const data = await empleadosService.getById(route.params.id)
     empleado.value = data
+    cargarBio()
 
     ui.setBreadcrumbs([
       { label: 'Home', to: '/' },
@@ -1396,6 +1446,7 @@ select option { background: var(--bg1); }
 .enr-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 9px; cursor: pointer;
   font-size: 12px; font-weight: 600; font-family: inherit; background: var(--bg2); color: var(--tx0); border: 0.5px solid var(--bdr2); }
 .enr-btn.main { background: var(--acc, #4f8ef7); border-color: var(--acc, #4f8ef7); color: #fff; }
+.bio-inp { background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 9px; padding: 8px 10px; font-size: 13px; color: var(--tx0); outline: none; font-family: inherit; width: 100%; box-sizing: border-box; }
 .enr-btn.danger { color: #f05454; border-color: rgba(240,84,84,.4); background: rgba(240,84,84,.08); }
 .enr-btn:disabled { opacity: .6; cursor: wait; }
 .link-hint { font-size: 12px; color: var(--tx2); margin: 0 0 12px; line-height: 1.5; }
